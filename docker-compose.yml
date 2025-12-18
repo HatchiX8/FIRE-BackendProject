@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: fire-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fire
+      POSTGRES_PASSWORD: fire
+      POSTGRES_DB: fire
+    ports:
+      - '5432:5432'
+    volumes:
+      - fire_pgdata:/var/lib/postgresql/data
+
+volumes:
+  fire_pgdata:

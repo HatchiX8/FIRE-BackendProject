@@ -1,0 +1,32 @@
+{
+  "name": "fire-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typeorm": "node -r ts-node/register ./node_modules/typeorm/cli.js -d ./src/db/data-source.ts",
+    "schema:log": "npm run typeorm -- schema:log",
+    "migration:generate": "npm run typeorm -- migration:generate ./src/db/migrations/AutoMigration",
+    "migration:run": "npm run typeorm -- migration:run",
+    "migration:revert": "npm run typeorm -- migration:revert"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.28"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typeorm-ts-node-commonjs": "^0.3.20",
+    "typescript": "^5.9.3"
+  }
+}
