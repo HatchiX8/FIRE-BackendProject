@@ -29,4 +29,4 @@ COPY --from=builder /app/dist ./dist
 # Zeabur will provide PORT env; your app should listen on process.env.PORT
 EXPOSE 3000
 
-CMD ["npm", "run", "start:prod"]
+CMD ["npm", "run", "start"]
