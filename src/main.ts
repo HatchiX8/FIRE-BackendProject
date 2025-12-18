@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import { createApp } from './app';
-import { AppDataSource } from './db/data-source';
+import { createApp } from './app.js';
+import { AppDataSource } from './db/data-source.js';
 
 const port = Number(process.env.PORT ?? '3001');
 

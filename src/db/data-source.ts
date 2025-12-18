@@ -1,5 +1,6 @@
-import 'reflect-metadata';
 import { DataSource } from 'typeorm';
+
+const isProd = process.env.NODE_ENV === 'production';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -10,6 +11,6 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME ?? 'fire',
   synchronize: false,
   logging: false,
-  entities: ['src/**/*.entity.ts', 'dist/**/*.entity.js'],
-  migrations: ['src/db/migrations/*.ts', 'dist/db/migrations/*.js'],
+  entities: [isProd ? 'dist/**/*.entity.js' : 'src/**/*.entity.ts'],
+  migrations: [isProd ? 'dist/db/migrations/*.js' : 'src/db/migrations/*.ts'],
 });
