@@ -9,10 +9,13 @@
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typeorm": "node -r ts-node/register ./node_modules/typeorm/cli.js -d ./src/db/data-source.ts",
+    "typeorm:prod": "node ./node_modules/typeorm/cli.js -d ./dist/db/data-source.js",
     "schema:log": "npm run typeorm -- schema:log",
     "migration:generate": "npm run typeorm -- migration:generate ./src/db/migrations/AutoMigration",
     "migration:run": "npm run typeorm -- migration:run",
-    "migration:revert": "npm run typeorm -- migration:revert"
+    "migration:revert": "npm run typeorm -- migration:revert",
+    "migration:run:prod": "npm run typeorm:prod -- migration:run",
+    "start:prod": "npm run migration:run:prod && npm run start"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
