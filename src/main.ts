@@ -2,7 +2,17 @@ import 'dotenv/config';
 import { createApp } from './app.js';
 import { AppDataSource } from './db/data-source.js';
 
-const port = Number(process.env.PORT ?? '3001');
+const rawPort = process.env.PORT?.trim();
+
+let port: number;
+
+if (rawPort && /^\d+$/.test(rawPort)) {
+  port = Number.parseInt(rawPort, 10);
+} else if (process.env.NODE_ENV !== 'production') {
+  port = 1911; // local / dev fallback
+} else {
+  throw new Error(`Invalid PORT env in production: "${rawPort}"`);
+}
 
 async function bootstrap() {
   await AppDataSource.initialize();
