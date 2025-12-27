@@ -1,9 +1,10 @@
 import express from 'express';
 import passport from 'passport';
-
+import cookieParser from 'cookie-parser';
 // ----------登入驗證----------
 import { setupGoogleStrategy } from './modules/auth/google.strategy.js';
-import { authRouter } from './modules/auth/auth.controller.js';
+import { authRouter } from './modules/auth/auth.router.js';
+import { authMiddleware } from './middlewares/auth.middleware.js';
 // ---------------------------
 
 import { healthRoutes } from './modules/health/health.routes.js';
@@ -16,9 +17,10 @@ export const createApp = () => {
   setupGoogleStrategy();
   app.use(passport.initialize());
   app.use(express.json());
+  app.use(cookieParser());
 
   app.use('/auth', authRouter);
-  app.use('/health', healthRoutes);
+  app.use('/api/health', authMiddleware, healthRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

@@ -12,12 +12,12 @@ type RefreshTokenPayload = {
 const ACCESS_EXPIRES_IN = '15m';
 const REFRESH_EXPIRES_IN = '30d';
 
-export const signAccessToken = (userId: string, secret: string): string => {
+export function signAccessToken(userId: string, secret: string): string {
   const payload: AccessTokenPayload = { userId };
   return jwt.sign(payload, secret, { expiresIn: ACCESS_EXPIRES_IN });
-};
+}
 
-export const signRefreshToken = (userId: string, tokenId: string, secret: string): string => {
+export function signRefreshToken(userId: string, tokenId: string, secret: string): string {
   const payload: RefreshTokenPayload = { userId, tokenId };
   return jwt.sign(payload, secret, { expiresIn: REFRESH_EXPIRES_IN });
-};
+}
