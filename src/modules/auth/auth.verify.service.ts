@@ -3,9 +3,13 @@ import { UserEntity } from '../users/user.entity.js';
 
 export type MeResponse = {
   id: string;
-  email: string;
   name: string;
-  picture: string;
+  nickname: string;
+  email: string;
+  avatar_url: string;
+  role: string;
+  upgrade_status: string;
+  is_active: boolean;
 };
 
 export async function checkLogin(ds: DataSource, userId: string): Promise<MeResponse | null> {
@@ -16,8 +20,12 @@ export async function checkLogin(ds: DataSource, userId: string): Promise<MeResp
 
   return {
     id: user.userId,
-    email: user.userEmail,
     name: user.userName,
-    picture: user.avatarUrl || '',
+    nickname: user.userNickname || '',
+    email: user.userEmail,
+    avatar_url: user.avatarUrl || '',
+    role: user.role,
+    upgrade_status: user.upgradePlan,
+    is_active: user.isActive,
   };
 }

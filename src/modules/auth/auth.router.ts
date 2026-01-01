@@ -44,7 +44,10 @@ authRouter.get(
 // Step2: Google OAuth 登入成功後的 callback 處理
 authRouter.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/auth/google/failure' }),
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: '/api/v1/user/google/failure',
+  }),
   async (req, res) => {
     const profile = toGoogleProfile(req.user);
 
@@ -61,25 +64,17 @@ authRouter.get(
       httpOnly: true,
       secure: isSecureEnv,
       sameSite: isSecureEnv ? 'none' : 'lax',
-      path: '/auth', // 建議限制只有 /auth 底下的 refresh/logout 會帶這個 cookie
+      path: '/api/v1/user', // 建議限制只有 /auth 底下的 refresh/logout 會帶這個 cookie
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 天（和 refresh token 的有效期限一樣）
     });
 
-    return res.status(200).json({
-      ok: true,
-      message: '登入成功',
-      data: {
-        token: result.tokens.accessToken,
-        id: result.user.id,
-        name: result.user.name,
-        email: result.user.email,
-        avatar_url: result.user.picture,
-      },
-    });
+    const frontendUrl = process.env.FRONTEND_URL;
+    return res.redirect(`${frontendUrl}/auth/callback`);
   }
 );
 
 authRouter.get('/check', authMiddleware, async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const userIdUnknown: unknown = res.locals.userId;
   if (typeof userIdUnknown !== 'string' || !userIdUnknown) {
     return res.status(401).json({ ok: false, message: '請先登入' });
@@ -90,7 +85,12 @@ authRouter.get('/check', authMiddleware, async (_req, res) => {
     return res.status(401).json({ ok: false, message: '驗證錯誤，token 無效或是不存在' });
   }
 
-  return res.json({ ok: true, message: '驗證成功', user });
+  return res.json({
+    message: '驗證成功',
+    data: {
+      user: user,
+    },
+  });
 });
 
 authRouter.post('/refresh', async (req, res) => {
@@ -108,9 +108,8 @@ authRouter.post('/refresh', async (req, res) => {
   }
 
   return res.json({
-    ok: true,
     message: '已重新取得新的存取權杖',
-    tokens: { accessToken: result.accessToken },
+    data: result.accessToken,
   });
 });
 
@@ -122,15 +121,14 @@ authRouter.post('/logout', async (req, res) => {
   await logoutByRefreshToken(AppDataSource, refreshToken, REFRESH_SECRET);
 
   // 2) 清 cookie（options 要跟你當初 res.cookie 一致）
-  const isProd = process.env.NODE_ENV === 'production';
   res.clearCookie('refreshToken', {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
+    secure: isSecureEnv,
+    sameSite: isSecureEnv ? 'none' : 'lax',
     path: '/auth',
   });
 
   // 3) 回應（登出建議 idempotent：永遠回 ok）
-  return res.json({ ok: true });
+  return res.json({ message: '已成功登出' });
 });
 // -----------------------------------
