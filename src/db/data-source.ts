@@ -1,14 +1,17 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
 
-const isProd = process.env.NODE_ENV === 'production';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const distSeg = `${path.sep}dist`;
+const isBuilt = __dirname.includes(`${distSeg}${path.sep}`) || __dirname.endsWith(distSeg);
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
 
-  // ✅ 雲端優先用 DATABASE_URL
   url: process.env.DATABASE_URL,
-
-  // ⬇️ 只有在沒有 DATABASE_URL（本機）時才用下面這組
   host: process.env.DATABASE_URL ? undefined : process.env.DB_HOST ?? 'localhost',
   port: process.env.DATABASE_URL ? undefined : Number(process.env.DB_PORT ?? '5432'),
   username: process.env.DATABASE_URL ? undefined : process.env.DB_USER ?? 'fire',
@@ -17,6 +20,15 @@ export const AppDataSource = new DataSource({
 
   synchronize: false,
   logging: false,
-  entities: [isProd ? 'dist/**/*.entity.js' : 'src/**/*.entity.ts'],
-  migrations: [isProd ? 'dist/db/migrations/*.js' : 'src/db/migrations/*.ts'],
+
+  entities: [
+    isBuilt
+      ? path.resolve(__dirname, '../**/*.entity.js')
+      : path.resolve(__dirname, '../**/*.entity.ts'),
+  ],
+  migrations: [
+    isBuilt
+      ? path.resolve(__dirname, '../**/migrations/*.js')
+      : path.resolve(__dirname, '../**/migrations/*.ts'),
+  ],
 });
