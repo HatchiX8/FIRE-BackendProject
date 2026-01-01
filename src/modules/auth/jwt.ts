@@ -9,7 +9,7 @@ type RefreshTokenPayload = {
   tokenId: string; // 對應 DB 那筆 refresh token 記錄
 };
 
-const ACCESS_EXPIRES_IN = '15m';
+const ACCESS_EXPIRES_IN = '10s';
 const REFRESH_EXPIRES_IN = '30d';
 
 export function signAccessToken(userId: string, secret: string): string {

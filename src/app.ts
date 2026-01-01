@@ -1,6 +1,7 @@
 import express from 'express';
 import passport from 'passport';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 // ----------登入驗證----------
 import { setupGoogleStrategy } from './modules/auth/google.strategy.js';
 import { authRouter } from './modules/auth/auth.router.js';
@@ -14,12 +15,19 @@ import { errorHandler } from './middlewares/error-handler.js';
 export const createApp = () => {
   const app = express();
 
+  app.use(
+    cors({
+      origin: process.env.FRONTEND_URL,
+      credentials: true,
+    })
+  );
+
   setupGoogleStrategy();
   app.use(passport.initialize());
   app.use(express.json());
   app.use(cookieParser());
 
-  app.use('/auth', authRouter);
+  app.use('/api/v1/user', authRouter);
   app.use('/api/health', authMiddleware, healthRoutes);
 
   app.use(notFound);
