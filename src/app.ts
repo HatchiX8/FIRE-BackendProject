@@ -8,7 +8,11 @@ import { authRouter } from './modules/auth/auth.router.js';
 import { authMiddleware } from './middlewares/auth.middleware.js';
 // ---------------------------
 
+// ----------router引入----------
 import { healthRoutes } from './modules/health/health.routes.js';
+import { userRouter } from './modules/user/user.routes.js';
+// ------------------------------
+
 import { notFound } from './middlewares/not-found.js';
 import { errorHandler } from './middlewares/error-handler.js';
 
@@ -29,6 +33,7 @@ export const createApp = () => {
 
   app.use('/api/v1/user', authRouter);
   app.use('/api/health', authMiddleware, healthRoutes);
+  app.use('/api/v1/user', userRouter);
 
   app.use(notFound);
   app.use(errorHandler);

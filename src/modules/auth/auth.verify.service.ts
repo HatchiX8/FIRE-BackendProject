@@ -1,5 +1,5 @@
 import { DataSource } from 'typeorm';
-import { UserEntity } from '../users/user.entity.js';
+import { UserEntity } from '../user/user.entity.js';
 
 export type MeResponse = {
   id: string;
