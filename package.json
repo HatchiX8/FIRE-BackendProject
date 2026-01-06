@@ -29,7 +29,8 @@
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "zod": "^4.3.4"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

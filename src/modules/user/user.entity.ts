@@ -7,8 +7,7 @@ import {
   Index,
 } from 'typeorm';
 
-export type UserRole = 'guest' | 'user' | 'admin';
-export type UpgradeStatus = 'none' | 'pending' | 'approved' | 'rejected';
+import type { UserRole, UpgradeStatus } from './user.types.js';
 
 @Entity({ name: 'users' })
 @Index('UQ_user_google_id', ['googleId'], { unique: true })
