@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, type RequestHandler } from 'express';
 import { Repository } from 'typeorm';
-import { UserEntity } from './user.entity.js';
+import { UserEntity } from '@/entity/user.entity.js';
 import { parseUpdateProfileDto, parseAccountUpgradeRequestDto } from './users.validators.js';
 import { getUserInfo, updateProfile, requestAccountUpgrade } from './user.service.js';
 

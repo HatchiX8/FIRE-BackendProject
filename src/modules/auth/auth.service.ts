@@ -2,7 +2,7 @@ import { DataSource } from 'typeorm';
 import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 
-import { UserEntity } from '../user/user.entity.js';
+import { UserEntity } from '@/entity/user.entity.js';
 import { RefreshTokenEntity } from './refresh-token.entity.js';
 import { GoogleProfile } from './auth.normalize.js';
 import { signAccessToken, signRefreshToken } from './jwt.js';

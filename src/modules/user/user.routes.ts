@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { getUserInfoController } from './user.controller.js';
-import { authMiddleware } from '../../middlewares/auth.middleware.js';
+import { authMiddleware } from '@/middlewares/auth.middleware.js';
 import { makeUpdateProfileHandler, makeAccountUpgradeHandler } from './user.controller.js';
-import { AppDataSource } from '../../db/data-source.js';
-import { UserEntity } from './user.entity.js';
+import { AppDataSource } from '@/db/data-source.js';
+import { UserEntity } from '@/entity/user.entity.js';
 
 export const userRouter = Router();
 const usersRepo = AppDataSource.getRepository(UserEntity);
