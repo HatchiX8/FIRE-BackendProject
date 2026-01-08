@@ -8,3 +8,8 @@ export function formatDateTime(date: Date): string {
   const mm = pad2(date.getMinutes());
   return `${y}/${m}/${d} ${hh}:${mm}`;
 }
+
+export function diffDays(from: Date, to: Date = new Date()): number {
+  const diffMs = to.getTime() - from.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
