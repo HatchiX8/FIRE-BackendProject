@@ -55,17 +55,17 @@ export async function reviewUpgradeRequestController(
   try {
     const userId = req.params.userId;
     if (!userId) {
-      throw httpError(400, '缺少 userId');
+      throw httpError(400, '查無使用者 ID，請確認');
     }
 
     const body = req.body as Partial<ReviewUpgradeRequestBodyDto>;
 
     if (!isReviewStatus(body.status)) {
-      throw httpError(400, "status 必須是 'approved' 或 'rejected'");
+      throw httpError(400, '狀態錯誤，請確認');
     }
 
     if (typeof body.userNote !== 'string') {
-      throw httpError(400, 'userNote 必須是字串');
+      throw httpError(400, '輸入的註記必須是字串');
     }
 
     await reviewUpgradeRequest({
@@ -97,16 +97,16 @@ export async function patchUserActivationController(
 ): Promise<void> {
   try {
     const userId = req.params.userId;
-    if (!userId) throw httpError(400, '缺少 userId');
+    if (!userId) throw httpError(400, '查無使用者 ID，請確認');
 
     const body = req.body as Partial<PatchUserActivationBodyDto>;
 
     if (!isActivationStatus(body.status)) {
-      throw httpError(400, "status 必須是 'downgrade' 或 'ban'");
+      throw httpError(400, '狀態錯誤，請確認');
     }
 
     if (typeof body.userNote !== 'string') {
-      throw httpError(400, 'userNote 必須是字串');
+      throw httpError(400, '輸入的註記必須是字串');
     }
 
     await patchUserActivation({
