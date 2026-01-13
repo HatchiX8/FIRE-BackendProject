@@ -1,9 +1,10 @@
 import type { DataSource } from 'typeorm';
-import { StockInfoSchema } from '@/entity/stockInfo.schema.js';
+import { StockPricesSchema } from '@/entity/currentStockPrices.schema.js';
 
 export type UpsertStockInfoInput = {
   stockId: string;
   stockName: string;
+  closePrice?: number | null;
 };
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
@@ -16,7 +17,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
  * 用於 init 模式判斷是否已經灌過資料
  */
 export async function hasAnyStockInfo(ds: DataSource): Promise<boolean> {
-  const repo = ds.getRepository(StockInfoSchema);
+  const repo = ds.getRepository(StockPricesSchema);
   const count = await repo.count();
   return count > 0;
 }
@@ -39,7 +40,7 @@ export async function upsertStockInfoChunked(
   const chunks = chunkArray(rows, chunkSize);
 
   await ds.transaction(async (trx) => {
-    const repo = trx.getRepository(StockInfoSchema);
+    const repo = trx.getRepository(StockPricesSchema);
 
     for (const chunk of chunks) {
       if (chunk.length === 0) continue;
@@ -47,16 +48,16 @@ export async function upsertStockInfoChunked(
       await repo
         .createQueryBuilder()
         .insert()
-        .into(StockInfoSchema)
+        .into(StockPricesSchema)
         .values(
           chunk.map((r) => ({
             stockId: r.stockId,
             stockName: r.stockName,
-            isActive: true,
+            closePrice: r.closePrice ?? null,
           }))
         )
         // 注意：orUpdate 這裡用「DB 欄位名」
-        .orUpdate(['stock_name', 'is_active', 'updated_at'], ['stock_id'])
+        .orUpdate(['stock_name', 'close_price', 'updated_at'], ['stock_id'])
         .execute();
     }
   });

@@ -7,7 +7,7 @@ import { AppDataSource } from '@/db/data-source.js';
 export const stockInfoRouter = Router();
 
 stockInfoRouter.post(
-  '/admin/stockInfo/sync',
+  '/admin/stockPrice/sync',
   requireInternalKey,
   buildStockInfoSyncHandler(AppDataSource)
 );

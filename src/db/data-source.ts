@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
 import { StockInfoSchema } from '../entity/stockInfo.schema.js';
+import { StockPricesSchema } from '../entity/currentStockPrices.schema.js';
 import { UserEntity } from '../entity/user.entity.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,7 +23,7 @@ export const AppDataSource = new DataSource({
   synchronize: false,
   logging: false,
 
-  entities: [StockInfoSchema, UserEntity],
+  entities: [StockInfoSchema, StockPricesSchema, UserEntity],
   migrations: [
     isBuilt
       ? path.resolve(__dirname, '../**/migrations/*.js')

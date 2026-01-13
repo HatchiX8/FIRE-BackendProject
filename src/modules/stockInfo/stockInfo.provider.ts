@@ -5,6 +5,7 @@ type RawRow = Record<string, unknown>;
 export type StockListItem = {
   stockId: string;
   stockName: string;
+  closePrice: number; // 統一收盤價欄位
 };
 
 function pickString(row: RawRow, keys: string[]): string | null {
@@ -20,21 +21,28 @@ function normalizeStockId(raw: string): string {
 }
 
 function mapRows(rows: RawRow[]): StockListItem[] {
-  const map = new Map<string, string>();
+  const map = new Map<string, { stockName: string; closePrice: number }>();
 
   for (const row of rows) {
     const idRaw = pickString(row, ['Code', '證券代號', '股票代號', 'SecurityCode']);
     const nameRaw = pickString(row, ['Name', '證券名稱', '股票名稱', 'SecurityName']);
+    const closePrice = pickNumber(row, ['ClosingPrice', 'Close']); // 上市 + 上櫃 統一處理
 
-    if (!idRaw || !nameRaw) continue;
+    if (!idRaw || !nameRaw || closePrice == null) continue;
 
     const stockId = normalizeStockId(idRaw);
     if (!stockId) continue;
 
-    if (!map.has(stockId)) map.set(stockId, nameRaw);
+    if (!map.has(stockId)) {
+      map.set(stockId, { stockName: nameRaw, closePrice });
+    }
   }
 
-  return Array.from(map.entries()).map(([stockId, stockName]) => ({ stockId, stockName }));
+  return Array.from(map.entries()).map(([stockId, { stockName, closePrice }]) => ({
+    stockId,
+    stockName,
+    closePrice,
+  }));
 }
 
 async function fetchJsonArray(url: string, timeoutMs: number): Promise<RawRow[]> {
@@ -64,12 +72,35 @@ export async function fetchStockListFromProviders(): Promise<StockListItem[]> {
     fetchJsonArray(TPEX_URL, timeoutMs),
   ]);
 
-  // 合併並去重（以 stockId 為準）
+  // 先各自 map 成統一結構
   const merged = [...mapRows(twseRows), ...mapRows(tpexRows)];
-  const dedup = new Map<string, string>();
+
+  // 以 stockId 去重，並保留 closePrice
+  const dedup = new Map<string, { stockName: string; closePrice: number }>();
   for (const it of merged) {
-    if (!dedup.has(it.stockId)) dedup.set(it.stockId, it.stockName);
+    // 若同一檔出現多次，可依需求決定覆蓋策略
+    if (!dedup.has(it.stockId)) {
+      dedup.set(it.stockId, { stockName: it.stockName, closePrice: it.closePrice });
+    }
   }
 
-  return Array.from(dedup.entries()).map(([stockId, stockName]) => ({ stockId, stockName }));
+  return Array.from(dedup.entries()).map(([stockId, { stockName, closePrice }]) => ({
+    stockId,
+    stockName,
+    closePrice,
+  }));
+}
+
+function pickNumber(row: RawRow, keys: string[]): number | null {
+  for (const k of keys) {
+    const v = row[k];
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    if (typeof v === 'string' && v.trim()) {
+      // 處理 "12,345.67" 這種格式
+      const n = Number(v.replace(/,/g, '').trim());
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  // 找不到就回傳 null，不要用 0 當預設
+  return null;
 }
