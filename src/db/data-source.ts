@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { StockInfoSchema } from '../entity/stockInfo.schema.js';
 import { StockPricesSchema } from '../entity/currentStockPrices.schema.js';
 import { UserEntity } from '../entity/user.entity.js';
+import { RefreshTokenEntity } from '../modules/auth/refresh-token.entity.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -23,7 +24,7 @@ export const AppDataSource = new DataSource({
   synchronize: false,
   logging: false,
 
-  entities: [StockInfoSchema, StockPricesSchema, UserEntity],
+  entities: [StockInfoSchema, StockPricesSchema, UserEntity, RefreshTokenEntity],
   migrations: [
     isBuilt
       ? path.resolve(__dirname, '../**/migrations/*.js')

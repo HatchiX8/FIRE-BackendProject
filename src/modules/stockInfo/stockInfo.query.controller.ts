@@ -1,28 +1,22 @@
-import type { Request, Response, NextFunction } from 'express';
-import type { DataSource } from 'typeorm';
-import { fetchStockOptions, searchStocks } from './stockInfo.query.service.js';
+import { Request, Response, NextFunction } from 'express';
+import { AppDataSource } from '@/db/data-source.js';
+import { StockPricesRepository, StockInfoRepository } from './stockInfo.query.repo.js';
 
-export function buildStockOptionsHandler(ds: DataSource) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const data = await fetchStockOptions(ds);
-      return res.status(200).json({ message: '成功取得股票資料', data });
-    } catch (err) {
-      return next(err);
-    }
-  };
-}
+import { SyncStockMetadataService } from './stockInfo.query.service.js';
 
-export function buildStockLookupHandler(ds: DataSource) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const q = String(req.query.q ?? '');
-      const limit = Number(req.query.limit ?? 30);
+export async function syncStockMetadata(req: Request, res: Response, next: NextFunction) {
+  try {
+    const pricesRepo = new StockPricesRepository(AppDataSource);
+    const infoRepo = new StockInfoRepository(AppDataSource);
 
-      const data = await searchStocks(ds, q, limit);
-      return res.status(200).json({ message: '成功取得股票資料', data });
-    } catch (err) {
-      return next(err);
-    }
-  };
+    const service = new SyncStockMetadataService(pricesRepo, infoRepo);
+    const result = await service.execute();
+
+    res.json({
+      success: true,
+      result,
+    });
+  } catch (err) {
+    next(err);
+  }
 }
