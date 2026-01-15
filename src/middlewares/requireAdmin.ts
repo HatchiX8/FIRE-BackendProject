@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { httpError } from '@/utils/index.js';
 import { AppDataSource } from '@/db/data-source.js';
-import { UserEntity } from '@/entity/user.entity.js';
+import { UserSchema } from '@/entity/user.schema.js';
 type LocalsWithUserId = {
   userId?: string;
 };
@@ -19,7 +19,7 @@ export async function requireAdmin(
   }
 
   try {
-    const userRepo = AppDataSource.getRepository(UserEntity);
+    const userRepo = AppDataSource.getRepository(UserSchema);
 
     // 只撈 role，避免撈整筆 user
     const user = await userRepo.findOne({

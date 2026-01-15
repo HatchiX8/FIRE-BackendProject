@@ -3,10 +3,10 @@ import { getUserInfoController } from './user.controller.js';
 import { authMiddleware } from '@/middlewares/auth.middleware.js';
 import { makeUpdateProfileHandler, makeAccountUpgradeHandler } from './user.controller.js';
 import { AppDataSource } from '@/db/data-source.js';
-import { UserEntity } from '@/entity/user.entity.js';
+import { UserSchema } from '@/entity/user.schema.js';
 
 export const userRouter = Router();
-const usersRepo = AppDataSource.getRepository(UserEntity);
+const usersRepo = AppDataSource.getRepository(UserSchema);
 userRouter.get('/info', authMiddleware, getUserInfoController);
 
 userRouter.patch('/update', authMiddleware, makeUpdateProfileHandler(usersRepo));

@@ -1,11 +1,11 @@
 import { AppDataSource } from '@/db/data-source.js';
 import { Repository } from 'typeorm';
-import { UserEntity } from '@/entity/user.entity.js';
+import { UserSchema, type UserEntity } from '@/entity/user.schema.js';
 import { UpdateProfileDto, type UserInfoDto, type AccountUpgradeRequestDto } from './user.dto.js';
 import { httpError } from '@/utils/index.js';
 // ----------取得使用者資料----------
 export async function getUserInfo(UserId: string): Promise<UserInfoDto> {
-  const userRepo = AppDataSource.getRepository(UserEntity);
+  const userRepo = AppDataSource.getRepository(UserSchema);
 
   const user = await userRepo.findOne({
     where: { userId: UserId },

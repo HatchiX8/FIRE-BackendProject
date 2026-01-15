@@ -1,5 +1,5 @@
 import { AppDataSource } from '@/db/data-source.js';
-import { UserEntity } from '@/entity/user.entity.js';
+import { UserSchema } from '@/entity/user.schema.js';
 import { formatDateTime, diffDays } from '@/utils/index.js';
 import type {
   UpgradeRequestItemDto,
@@ -11,7 +11,7 @@ import { httpError } from '@/utils/index.js';
 
 // ----------取得申請者----------
 export async function getPendingUpgradeRequests(): Promise<UpgradeRequestItemDto[]> {
-  const userRepo = AppDataSource.getRepository(UserEntity);
+  const userRepo = AppDataSource.getRepository(UserSchema);
 
   const users = await userRepo.find({
     where: { upgradePlan: 'pending' },
@@ -35,7 +35,7 @@ export async function getPendingUpgradeRequests(): Promise<UpgradeRequestItemDto
 
 // ----------取得使用者----------
 export async function getUserList(): Promise<UserItemDto[]> {
-  const userRepo = AppDataSource.getRepository(UserEntity);
+  const userRepo = AppDataSource.getRepository(UserSchema);
 
   const users = await userRepo.find({
     where: { role: 'user' },
@@ -65,7 +65,7 @@ export async function reviewUpgradeRequest(params: {
   status: ReviewStatus;
   userNote: string;
 }): Promise<void> {
-  const userRepo = AppDataSource.getRepository(UserEntity);
+  const userRepo = AppDataSource.getRepository(UserSchema);
 
   // 因為審核者初期只有一位，故沒有更新 reviewerId 和 reviewedAt 欄位，如有需要可額外添加
   const user = await userRepo.findOne({
@@ -109,7 +109,7 @@ export async function patchUserActivation(params: {
   status: ActivationStatus; // downgrade | ban
   userNote: string;
 }): Promise<void> {
-  const userRepo = AppDataSource.getRepository(UserEntity);
+  const userRepo = AppDataSource.getRepository(UserSchema);
 
   const user = await userRepo.findOne({
     where: { userId: params.userId },
