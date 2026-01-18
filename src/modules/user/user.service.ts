@@ -1,7 +1,13 @@
 import { AppDataSource } from '@/db/data-source.js';
 import { Repository } from 'typeorm';
 import { UserSchema, type UserEntity } from '@/entity/user.schema.js';
-import { UpdateProfileDto, type UserInfoDto, type AccountUpgradeRequestDto } from './user.dto.js';
+import { UserCapitalSchema, type UserCapitalEntity } from '@/entity/portfolioSummaries.schema.js';
+import type {
+  UpdateProfileDto,
+  UserInfoDto,
+  AccountUpgradeRequestDto,
+  UserTotalInvestDto,
+} from './user.dto.js';
 import { httpError } from '@/utils/index.js';
 // ----------取得使用者資料----------
 export async function getUserInfo(UserId: string): Promise<UserInfoDto> {
@@ -71,4 +77,91 @@ export const requestAccountUpgrade =
 
     await usersRepo.save(user);
   };
+// ---------------------------
+
+// ----------資金操作----------
+// 取得使用者總金額 total_invest（get）
+export async function getUserTotalInvest(userId: string): Promise<UserTotalInvestDto> {
+  const capitalRepo = AppDataSource.getRepository(UserCapitalSchema);
+
+  const row = await capitalRepo.findOne({
+    where: { userId },
+    select: {
+      totalInvest: true,
+    },
+  });
+
+  return {
+    total_invest: row ? Number(row.totalInvest) : 0,
+  };
+}
+
+// 共用：取得資金列，不存在就建立（cost_total 預設 0）
+async function getOrCreateCapitalRow(userId: string): Promise<UserCapitalEntity> {
+  const capitalRepo = AppDataSource.getRepository(UserCapitalSchema);
+
+  const exist = await capitalRepo.findOne({ where: { userId } });
+  if (exist) return exist;
+
+  const created: UserCapitalEntity = {
+    userId,
+    totalInvest: '0',
+    costTotal: '0',
+    updatedAt: new Date(),
+  };
+
+  return capitalRepo.save(created);
+}
+
+// 設定使用者總投入資金  total_invest（set）
+export async function depositTotalInvest(userId: string, amount: number): Promise<void> {
+  if (amount <= 0) throw httpError(400, '投入金額必須大於 0');
+
+  const capitalRepo = AppDataSource.getRepository(UserCapitalSchema);
+  const capital = await getOrCreateCapitalRow(userId);
+
+  // 防呆：total_invest 不可小於 cost_total
+  if (Number(capital.costTotal) > amount) {
+    throw httpError(400, '投入金額不可小於目前持倉成本');
+  }
+
+  capital.totalInvest = amount.toString();
+  await capitalRepo.save(capital);
+}
+
+// 投入金額 total_invest（+=）
+export async function addTotalInvest(userId: string, amount: number): Promise<void> {
+  if (amount <= 0) throw httpError(400, '投入金額必須大於 0');
+
+  const capitalRepo = AppDataSource.getRepository(UserCapitalSchema);
+  const capital = await getOrCreateCapitalRow(userId);
+
+  const nextTotal = Number(capital.totalInvest) + amount;
+
+  capital.totalInvest = nextTotal.toString();
+  await capitalRepo.save(capital);
+}
+
+// 提領金額 total_invest（-=）
+export async function withdrawalTotalInvest(userId: string, amount: number): Promise<void> {
+  if (amount <= 0) throw httpError(400, '提領金額必須大於 0');
+
+  const capitalRepo = AppDataSource.getRepository(UserCapitalSchema);
+  const capital = await getOrCreateCapitalRow(userId);
+
+  const nextTotal = Number(capital.totalInvest) - amount;
+
+  // total_invest 不可 <= 0（或你要允許 0 也行，這裡我用 <=0）
+  if (nextTotal <= 0) {
+    throw httpError(400, '提領後投入資金不得小於等於 0');
+  }
+
+  // 防呆：提領後 total_invest 不可小於 cost_total
+  if (Number(capital.costTotal) > nextTotal) {
+    throw httpError(400, '提領後投入資金不可小於目前持倉成本');
+  }
+
+  capital.totalInvest = nextTotal.toString();
+  await capitalRepo.save(capital);
+}
 // ---------------------------

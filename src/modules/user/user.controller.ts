@@ -2,7 +2,16 @@ import { Request, Response, NextFunction, type RequestHandler } from 'express';
 import { Repository } from 'typeorm';
 import { type UserEntity } from '@/entity/user.schema.js';
 import { parseUpdateProfileDto, parseAccountUpgradeRequestDto } from './users.validators.js';
-import { getUserInfo, updateProfile, requestAccountUpgrade } from './user.service.js';
+import {
+  getUserInfo,
+  updateProfile,
+  requestAccountUpgrade,
+  depositTotalInvest,
+  addTotalInvest,
+  withdrawalTotalInvest,
+  getUserTotalInvest,
+} from './user.service.js';
+import { ca } from 'zod/locales';
 
 export const getUserInfoController: RequestHandler = async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -69,4 +78,103 @@ export const makeAccountUpgradeHandler = (usersRepo: Repository<UserEntity>) => 
     }
   };
 };
+// ---------------------------
+
+// ----------資金操作----------
+export async function getUserTotalInvestHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
+    }
+
+    const data = await getUserTotalInvest(userId);
+
+    res.status(200).json({
+      message: '成功取得投資金額',
+      data,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+// 重置
+export async function depositTotalInvestHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
+    }
+
+    const { amount } = req.body;
+
+    await depositTotalInvest(userId, amount);
+
+    res.status(200).json({
+      message: '成功更新投資金額',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 投入
+export async function addInvestHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
+    }
+
+    const { amount } = req.body;
+
+    await addTotalInvest(userId, amount);
+
+    res.status(200).json({
+      message: '成功更新投資金額',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 提領
+export async function withdrawalInvestHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
+    }
+
+    const { amount } = req.body;
+
+    await withdrawalTotalInvest(userId, amount);
+
+    res.status(200).json({
+      message: '成功更新投資金額',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
 // ---------------------------
