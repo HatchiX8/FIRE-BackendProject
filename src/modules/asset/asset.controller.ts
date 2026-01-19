@@ -92,9 +92,9 @@ export async function updateAssetController(
     }
 
     // 路徑定義為 /api/v1/assets/:assetsId
-    const assetId = req.params.assetsId;
+    const lotId = req.params.assetId;
 
-    await updateAsset(userId, assetId, req.body);
+    await updateAsset(userId, lotId, req.body);
     res.status(200).json({ message: '資產編輯成功' });
   } catch (err) {
     next(err);
@@ -114,9 +114,9 @@ export async function deleteAssetController(
       return;
     }
 
-    const assetId = req.params.assetId;
+    const lotId = req.params.assetId;
 
-    await deleteAsset(userId, assetId);
+    await deleteAsset(userId, lotId);
     res.status(200).json({ message: '資產刪除成功' });
   } catch (err) {
     next(err);

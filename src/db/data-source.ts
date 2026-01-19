@@ -6,6 +6,7 @@ import { StockPricesSchema } from '../entity/currentStockPrices.schema.js';
 import { UserSchema } from '../entity/user.schema.js';
 import { UserCapitalSchema } from '../entity/portfolioSummaries.schema.js';
 import { DealsSchema } from '../entity/deals.schema.js';
+import { LotsSchema } from '../entity/lots.schema.js';
 
 import { RefreshTokenEntity } from '../modules/auth/refresh-token.entity.js';
 
@@ -34,6 +35,7 @@ export const AppDataSource = new DataSource({
     UserSchema,
     UserCapitalSchema,
     DealsSchema,
+    LotsSchema,
     RefreshTokenEntity,
   ],
   migrations: [

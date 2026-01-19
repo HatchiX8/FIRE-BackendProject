@@ -1,24 +1,29 @@
 import { EntitySchema } from 'typeorm';
 import type { UserEntity } from './user.schema.js';
+import type { LotsEntity } from './lots.schema.js';
 
-export interface dealsEntity {
+export interface DealsEntity {
   tradeId: string;
   userId: string;
+  lotId?: string | null;
   stockId: string;
   stockName: string;
   type: 'buy' | 'sell';
   totalCost: string; // numeric(12,2)
   price: string; // numeric(12,2)
   quantity: number;
-  note?: string | null;
   dealDate: Date;
   createdAt: Date;
   updatedAt: Date;
 
+  isVoided?: boolean;
+  voidedAt: Date;
+
   user?: UserEntity;
+  lot?: LotsEntity;
 }
 
-export const DealsSchema = new EntitySchema<dealsEntity>({
+export const DealsSchema = new EntitySchema<DealsEntity>({
   name: 'deals',
   tableName: 'deals',
   columns: {
@@ -31,9 +36,15 @@ export const DealsSchema = new EntitySchema<dealsEntity>({
     userId: {
       name: 'user_id',
       type: 'uuid',
-      primary: true,
       nullable: false,
     },
+
+    lotId: {
+      name: 'lot_id',
+      type: 'uuid',
+      nullable: true, // 舊資料可先 null；新流程 buy/sell 建議必填
+    },
+
     stockId: {
       name: 'stock_id',
       type: 'varchar',
@@ -71,11 +82,6 @@ export const DealsSchema = new EntitySchema<dealsEntity>({
       type: 'int',
       nullable: false,
     },
-    note: {
-      name: 'note',
-      type: 'text',
-      nullable: true,
-    },
     dealDate: {
       name: 'deal_date',
       type: 'date',
@@ -93,13 +99,41 @@ export const DealsSchema = new EntitySchema<dealsEntity>({
       updateDate: true,
       default: () => 'CURRENT_TIMESTAMP',
     },
+
+    isVoided: {
+      name: 'is_voided',
+      type: 'boolean',
+      nullable: false,
+      default: false,
+    },
+
+    voidedAt: {
+      name: 'voided_at',
+      type: 'timestamptz',
+      nullable: true,
+    },
   },
 
   relations: {
     user: {
-      type: 'one-to-one',
+      type: 'many-to-one',
       target: 'users',
-      joinColumn: { name: 'user_id', referencedColumnName: 'userId' },
+      joinColumn: { name: 'user_id' },
+      onDelete: 'CASCADE',
+    },
+
+    lot: {
+      type: 'many-to-one',
+      target: 'lots',
+      joinColumn: { name: 'lot_id' },
+      nullable: true,
+      onDelete: 'SET NULL', // lots 不建議刪，但若刪了也不讓 deals 爆掉
     },
   },
+
+  indices: [
+    { name: 'idx_deals_user_date', columns: ['userId', 'dealDate'] },
+    { name: 'idx_deals_user_type', columns: ['userId', 'type'] },
+    { name: 'idx_deals_lot', columns: ['lotId'] },
+  ],
 });
