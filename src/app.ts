@@ -16,6 +16,7 @@ import { userRouter } from './modules/user/user.routes.js';
 import { upgradeRouter } from './modules/upgrade/upgrade.routes.js';
 import { stockInfoRouter } from './modules/stockInfo/stockInfo.route.js';
 import { assetRouter } from './modules/asset/asset.router.js';
+import { dashboardRouter } from './modules/dashboard/dashboard.router.js';
 // ------------------------------
 
 import { notFound } from './middlewares/not-found.js';
@@ -42,6 +43,7 @@ export const createApp = () => {
   app.use('/api/v1/admin', authMiddleware, requireAdmin, upgradeRouter);
   app.use('/api/v1/stock', stockInfoRouter);
   app.use('/api/v1/assets', assetRouter);
+  app.use('/api/v1/dashboard', dashboardRouter);
 
   app.use(notFound);
   app.use(errorHandler);

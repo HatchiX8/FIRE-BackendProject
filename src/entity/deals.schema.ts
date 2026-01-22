@@ -5,14 +5,17 @@ import type { LotsEntity } from './lots.schema.js';
 export interface DealsEntity {
   tradeId: string;
   userId: string;
-  lotId?: string | null;
+  lotId: string;
   stockId: string;
   stockName: string;
   type: 'buy' | 'sell';
   totalCost: string; // numeric(12,2)
+  sellCost: string; // numeric(12,2)
   price: string; // numeric(12,2)
   quantity: number;
+  realizedPnl: string; // numeric(14,2)
   dealDate: Date;
+  note?: string | null;
   createdAt: Date;
   updatedAt: Date;
 
@@ -42,7 +45,7 @@ export const DealsSchema = new EntitySchema<DealsEntity>({
     lotId: {
       name: 'lot_id',
       type: 'uuid',
-      nullable: true, // 舊資料可先 null；新流程 buy/sell 建議必填
+      nullable: false, // 舊資料可先 null；新流程 buy/sell 建議必填
     },
 
     stockId: {
@@ -70,6 +73,13 @@ export const DealsSchema = new EntitySchema<DealsEntity>({
       scale: 2,
       nullable: false,
     },
+    sellCost: {
+      name: 'sell_cost',
+      type: 'numeric',
+      precision: 12,
+      scale: 2,
+      nullable: false,
+    },
     price: {
       name: 'price',
       type: 'numeric',
@@ -82,10 +92,24 @@ export const DealsSchema = new EntitySchema<DealsEntity>({
       type: 'int',
       nullable: false,
     },
+    realizedPnl: {
+      name: 'realized_pnl',
+      type: 'numeric',
+      precision: 14,
+      scale: 2,
+      nullable: false,
+      default: 0,
+    },
     dealDate: {
       name: 'deal_date',
       type: 'date',
       nullable: false,
+    },
+    note: {
+      name: 'note',
+      type: 'varchar',
+      length: 100,
+      nullable: true,
     },
     createdAt: {
       name: 'created_at',

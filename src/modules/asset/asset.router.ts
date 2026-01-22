@@ -9,6 +9,7 @@ import {
   updateAssetController,
   deleteAssetController,
   getUserPortfolioSummaryController,
+  sellAssetController,
 } from './asset.controller.js';
 // const dealsRepo = AppDataSource.getRepository(DealsSchema);
 
@@ -23,3 +24,5 @@ assetRouter.patch('/:assetId', authMiddleware, updateAssetController);
 assetRouter.delete('/:assetId', authMiddleware, deleteAssetController);
 
 assetRouter.get('/portfolio/summary', authMiddleware, getUserPortfolioSummaryController);
+
+assetRouter.post('/:assetId', authMiddleware, sellAssetController);

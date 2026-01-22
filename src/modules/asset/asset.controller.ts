@@ -5,6 +5,7 @@ import {
   updateAsset,
   deleteAsset,
   getUserPortfolioSummary,
+  sellAsset,
 } from './asset.service.js';
 
 // 取得使用者資金配置
@@ -118,6 +119,30 @@ export async function deleteAssetController(
 
     await deleteAsset(userId, lotId);
     res.status(200).json({ message: '資產刪除成功' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// 賣出資產
+export async function sellAssetController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
+    }
+
+    const lotId = req.params.assetId;
+
+    await sellAsset(userId, lotId, req.body);
+    res.status(200).json({
+      message: '賣出資產成功',
+    });
   } catch (err) {
     next(err);
   }

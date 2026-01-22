@@ -50,3 +50,12 @@ export interface UserPortfolioSummaryDto {
   // stockProfit: number; // 未實現損益,後續擴充
   // profitRate: number; // 未實現損益報酬率,後續擴充
 }
+
+export interface sellAssetDto {
+  sellPrice: number;
+  sellQty: number;
+  sellCost: number;
+  realizedPnl: number;
+  sellDate: string; // "2025/08/11"
+  note?: string;
+}

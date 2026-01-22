@@ -11,6 +11,7 @@ export interface LotsEntity {
   buyPrice: string; // numeric(12,2)
   buyQuantity: number;
   remainingQuantity: number;
+  remainingCost: string; // numeric(14,2)
   buyAmount: string; // numeric(14,2)
   note?: string | null;
   createdAt: Date;
@@ -78,7 +79,13 @@ export const LotsSchema = new EntitySchema<LotsEntity>({
       type: 'int',
       nullable: false,
     },
-
+    remainingCost: {
+      name: 'remaining_cost',
+      type: 'numeric',
+      precision: 14,
+      scale: 2,
+      nullable: false,
+    },
     buyAmount: {
       name: 'buy_amount',
       type: 'numeric',
