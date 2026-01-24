@@ -20,7 +20,7 @@ export interface DealsEntity {
   updatedAt: Date;
 
   isVoided?: boolean;
-  voidedAt: Date;
+  voidedAt: Date | null;
 
   user?: UserEntity;
   lot?: LotsEntity;

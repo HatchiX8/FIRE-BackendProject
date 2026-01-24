@@ -1,10 +1,21 @@
 import { Router } from 'express';
-import { authMiddleware } from '@/middlewares/auth.middleware.js';
 
-import { getUserReportsController, getUserTrendsController } from './dashboard.controller.js';
+import {
+  getUserReportsController,
+  getUserTrendsController,
+  createUserDashboardReportController,
+  updateUserDashboardReportController,
+  cancelUserDashboardReportController,
+} from './dashboard.controller.js';
 
 export const dashboardRouter = Router();
 
-dashboardRouter.get('/reports', authMiddleware, getUserReportsController);
+dashboardRouter.get('/reports', getUserReportsController);
 
-dashboardRouter.get('/trends', authMiddleware, getUserTrendsController);
+dashboardRouter.get('/trends', getUserTrendsController);
+
+dashboardRouter.post('/new-reports', createUserDashboardReportController);
+
+dashboardRouter.patch('/:tradesId', updateUserDashboardReportController);
+
+dashboardRouter.delete('/:tradesId', cancelUserDashboardReportController);

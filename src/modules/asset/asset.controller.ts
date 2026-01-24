@@ -70,7 +70,9 @@ export async function newAssetController(
       return;
     }
 
-    await createNewAsset(userId, req.body);
+    const role = res.locals.role;
+
+    await createNewAsset(userId, req.body, role);
     res.status(200).json({
       message: '新增資產成功',
     });
@@ -138,8 +140,9 @@ export async function sellAssetController(
     }
 
     const lotId = req.params.assetId;
+    const role = res.locals.role;
 
-    await sellAsset(userId, lotId, req.body);
+    await sellAsset(userId, lotId, req.body, role);
     res.status(200).json({
       message: '賣出資產成功',
     });

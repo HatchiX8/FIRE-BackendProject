@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { authMiddleware } from '@/middlewares/auth.middleware.js';
 import {
   getUserInfoController,
   makeUpdateProfileHandler,
@@ -14,16 +13,16 @@ import { UserSchema } from '@/entity/user.schema.js';
 
 export const userRouter = Router();
 const usersRepo = AppDataSource.getRepository(UserSchema);
-userRouter.get('/info', authMiddleware, getUserInfoController);
+userRouter.get('/info', getUserInfoController);
 
-userRouter.patch('/update', authMiddleware, makeUpdateProfileHandler(usersRepo));
+userRouter.patch('/update', makeUpdateProfileHandler(usersRepo));
 
-userRouter.post('/account-upgrade', authMiddleware, makeAccountUpgradeHandler(usersRepo));
+userRouter.post('/account-upgrade', makeAccountUpgradeHandler(usersRepo));
 
-userRouter.post('/update/totalInvest/deposit', authMiddleware, depositTotalInvestHandler);
+userRouter.post('/update/totalInvest/deposit', depositTotalInvestHandler);
 
-userRouter.post('/update/totalInvest/add', authMiddleware, addInvestHandler);
+userRouter.post('/update/totalInvest/add', addInvestHandler);
 
-userRouter.post('/update/totalInvest/withdrawal', authMiddleware, withdrawalInvestHandler);
+userRouter.post('/update/totalInvest/withdrawal', withdrawalInvestHandler);
 
-userRouter.get('/totalInvest', authMiddleware, getUserTotalInvestHandler);
+userRouter.get('/totalInvest', getUserTotalInvestHandler);

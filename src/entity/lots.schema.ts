@@ -18,7 +18,7 @@ export interface LotsEntity {
   updatedAt: Date;
 
   isVoided?: boolean;
-  voidedAt: Date;
+  voidedAt: Date | null;
 
   user?: UserEntity;
 }

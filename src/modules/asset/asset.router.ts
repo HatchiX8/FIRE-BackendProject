@@ -1,7 +1,4 @@
 import { Router } from 'express';
-import { authMiddleware } from '@/middlewares/auth.middleware.js';
-import { AppDataSource } from '@/db/data-source.js';
-import { DealsSchema } from '@/entity/deals.schema.js';
 
 import {
   newAssetController,
@@ -15,14 +12,14 @@ import {
 
 export const assetRouter = Router();
 
-assetRouter.post('/new-asset', authMiddleware, newAssetController);
+assetRouter.post('/new-asset', newAssetController);
 
-assetRouter.get('/portfolio/holdings', authMiddleware, getUserAssetsController);
+assetRouter.get('/portfolio/holdings', getUserAssetsController);
 
-assetRouter.patch('/:assetId', authMiddleware, updateAssetController);
+assetRouter.patch('/:assetId', updateAssetController);
 
-assetRouter.delete('/:assetId', authMiddleware, deleteAssetController);
+assetRouter.delete('/:assetId', deleteAssetController);
 
-assetRouter.get('/portfolio/summary', authMiddleware, getUserPortfolioSummaryController);
+assetRouter.get('/portfolio/summary', getUserPortfolioSummaryController);
 
-assetRouter.post('/:assetId', authMiddleware, sellAssetController);
+assetRouter.post('/:assetId', sellAssetController);

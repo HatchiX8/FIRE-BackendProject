@@ -13,6 +13,15 @@ import type {
 } from './asset.dto.js';
 import type { EntityManager } from 'typeorm';
 
+type UserRole = 'guest' | 'user' | 'admin';
+
+// 訪客配額
+const GUEST_ACTIVE_LOTS_LIMIT = 5;
+const GUEST_DAILY_TRADES_LIMIT = 50;
+// 一般使用者配額（之後要改成不限制，就把值調整或改成 Infinity）
+const BASIC_ACTIVE_LOTS_LIMIT = 200;
+const BASIC_DAILY_TRADES_LIMIT = 500;
+
 // ----------資產操作----------
 // 取得資產比例
 export async function getUserPortfolioSummary(userId: string): Promise<UserPortfolioSummaryDto> {
@@ -114,7 +123,8 @@ export async function getUserAssets(
 // 建立資產
 export async function createNewAsset(
   userId: string,
-  dto: NewAssetDto
+  dto: NewAssetDto,
+  role: UserRole
 ): Promise<{ lotId: string; tradeId: string }> {
   const { stockId, buyPrice, quantity, buyCost, buyDate, note } = dto;
 
@@ -142,6 +152,42 @@ export async function createNewAsset(
     const stockRepo = manager.getRepository(StockInfoSchema);
     const lotsRepo = manager.getRepository(LotsSchema);
     const dealsRepo = manager.getRepository(DealsSchema);
+
+    // ✅ 依角色取得本次配額
+    const { activeLotsLimit, dailyTradesLimit } = getQuotaByRole(role);
+
+    // 1) active lots：未撤銷且剩餘股數 > 0 的 lot 數量（只有有上限的角色才檢查）
+    if (activeLotsLimit != null) {
+      const activeLotsCount = await lotsRepo
+        .createQueryBuilder('l')
+        .where('l.user_id = :userId', { userId })
+        .andWhere('l.is_voided = false')
+        .andWhere('l.remaining_quantity > 0')
+        .getCount();
+
+      if (activeLotsCount >= activeLotsLimit) {
+        throw httpError(429, '已達同時持倉上限，無法新增資產');
+      }
+    }
+
+    // 2) 今日交易數（buy + sell）（只有有上限的角色才檢查）
+    if (dailyTradesLimit != null) {
+      const { start, end } = getTodayRange();
+      const todayTradesCount = await dealsRepo
+        .createQueryBuilder('d')
+        .where('d.user_id = :userId', { userId })
+        .andWhere('d.is_voided = false')
+        .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
+          start,
+          end,
+        })
+        .getCount();
+
+      // 這次建倉會再多一筆 buy deal，所以已經等於上限就不給建
+      if (todayTradesCount >= dailyTradesLimit) {
+        throw httpError(429, '已達今日可建立交易上限，無法新增資產');
+      }
+    }
 
     const capital = await getOrCreateCapitalRow(userId, manager);
 
@@ -329,7 +375,12 @@ export async function deleteAsset(userId: string, lotId: string): Promise<void> 
 }
 
 // 賣出資產
-export async function sellAsset(userId: string, lotId: string, dto: sellAssetDto): Promise<string> {
+export async function sellAsset(
+  userId: string,
+  lotId: string,
+  dto: sellAssetDto,
+  role: UserRole
+): Promise<string> {
   if (!lotId) throw httpError(400, 'lotId 不可為空');
 
   const { sellPrice, sellQty, sellCost, realizedPnl, sellDate, note } = dto;
@@ -365,6 +416,28 @@ export async function sellAsset(userId: string, lotId: string, dto: sellAssetDto
     const dealsRepo = manager.getRepository(DealsSchema);
     const capitalRepo = manager.getRepository(UserCapitalSchema);
 
+    // ✅ 依角色取得本次配額
+    const { dailyTradesLimit } = getQuotaByRole(role);
+
+    // 只有有上限的角色才檢查今日交易數
+    if (dailyTradesLimit != null) {
+      const { start, end } = getTodayRange();
+      const todayTradesCount = await dealsRepo
+        .createQueryBuilder('d')
+        .where('d.user_id = :userId', { userId })
+        .andWhere('d.is_voided = false')
+        .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
+          start,
+          end,
+        })
+        .getCount();
+
+      // 這次賣出會多一筆 sell deal，已達上限就不讓賣
+      if (todayTradesCount >= dailyTradesLimit) {
+        throw httpError(429, '已達今日可建立交易上限，無法新增賣出紀錄');
+      }
+    }
+
     const lot = await lotsRepo.findOne({ where: { lotId } });
     if (!lot) throw httpError(400, '找不到要編輯的資產');
     if (lot.isVoided) throw httpError(400, '此資產已撤銷，無法賣出');
@@ -383,8 +456,13 @@ export async function sellAsset(userId: string, lotId: string, dto: sellAssetDto
       throw httpError(400, '成本計算結果不合法');
     }
 
-    if (soldCost < 0) {
-      throw httpError(400, '輸入的應收付與損益不合理，導致 soldCost 為負數');
+    // 🔴 新增：soldCost 不得超過「本次可分配的最大成本」
+    // 目前平均每股成本 = 剩餘成本 / 剩餘股數
+    const avgCostPerShare = Number(lot.remainingCost) / lot.remainingQuantity;
+    const maxAllocatableCost = roundTo2(avgCostPerShare * sellQty);
+
+    if (soldCost > maxAllocatableCost) {
+      throw httpError(400, '此次賣出分配的成本超過可分配成本，請調整應收付金額或實際損益');
     }
 
     const newSellDeal = dealsRepo.create({
@@ -469,4 +547,42 @@ function parseYMDSlashDate(input: string, fieldName: string): Date {
     throw httpError(400, `${fieldName}格式錯誤，需為 YYYY/MM/DD`);
   }
   return dt;
+}
+
+// ✅ 取得「今天」的時間範圍 [start, end)
+function getTodayRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+}
+
+// 依角色取得這次要套用的配額；limit 為 null 代表不限制
+function getQuotaByRole(role: UserRole): {
+  activeLotsLimit: number | null;
+  dailyTradesLimit: number | null;
+} {
+  switch (role) {
+    case 'guest':
+      return {
+        activeLotsLimit: GUEST_ACTIVE_LOTS_LIMIT,
+        dailyTradesLimit: GUEST_DAILY_TRADES_LIMIT,
+      };
+    case 'user':
+      return {
+        activeLotsLimit: BASIC_ACTIVE_LOTS_LIMIT,
+        dailyTradesLimit: BASIC_DAILY_TRADES_LIMIT,
+      };
+    case 'admin':
+    default:
+      // admin 預設不限制，若未來要加限制，可在這裡調整
+      return {
+        activeLotsLimit: null,
+        dailyTradesLimit: null,
+      };
+  }
 }
