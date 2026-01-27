@@ -24,5 +24,5 @@ export type TotalInvestDepositDto = {
 };
 
 export type UserTotalInvestDto = {
-  total_invest: number;
+  totalInvest: number;
 };

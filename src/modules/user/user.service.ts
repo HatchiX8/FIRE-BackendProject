@@ -94,7 +94,7 @@ export async function getUserTotalInvest(userId: string): Promise<UserTotalInves
   });
 
   return {
-    total_invest: row ? Number(row.totalInvest) : 0,
+    totalInvest: row ? Number(row.totalInvest) : 0,
   };
 }
 

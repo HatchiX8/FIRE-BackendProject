@@ -105,7 +105,7 @@ export async function getUserAssets(
     buyPrice: parseFloat(r.buyPrice),
     quantity: r.remainingQuantity,
     totalCost: parseFloat(r.remainingCost),
-    created_at: r.buyDate as unknown as string, // YYYY-MM-DD
+    buyDate: r.buyDate as unknown as string, // YYYY-MM-DD
     note: r.note ?? '',
   }));
 

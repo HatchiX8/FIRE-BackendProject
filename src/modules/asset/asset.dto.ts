@@ -24,7 +24,7 @@ export interface AssetInfo {
   // stockProfit: number; // 未實現損益後續擴充
   // profitRate: 3.16; // 未實現損益百分比,後續擴充
   note: string;
-  created_at: string;
+  buyDate: string;
 }
 
 export interface PaginationInfo {
