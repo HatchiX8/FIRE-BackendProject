@@ -7,7 +7,6 @@ import type {
   DashboardReportsDto,
   DashboardTradeReportItem,
   DashboardTrendsDto,
-  DashboardTrendPoint,
   NewDashboardReportDto,
   UpdateDashboardReportDto,
 } from './dashboard.dto.js';
@@ -70,30 +69,47 @@ export async function getUserDashboardReports(
     const lot = d.lot; // 可能為 undefined（安全起見要處理）
 
     const buyPrice = lot ? Number(lot.buyPrice) : 0;
+    const quantity = Number(lot?.remainingQuantity); // 回傳剩餘股數
+    const buyCost = Number(lot?.buyAmount); // 這次賣掉對應的成本
+    const buyDate = lot ? formatDateToSlash(lot.buyDate) : '';
+    const buyNote = lot ? lot.note : null;
     const sellPrice = Number(d.price);
-    const quantity = d.quantity;
-    const buyCost = Number(d.totalCost); // 這次賣掉對應的成本
-    const actualRealizedPnl = Number(d.sellCost); // 應收付金額
-    const stockProfit = Number(d.realizedPnl);
+    const sellDate = formatDateToSlash(d.dealDate);
+    const sellCost = Number(d.sellCost);
+    const sellQty = d.quantity;
+    const realizedPnl = Number(d.realizedPnl);
+    const sellNote = d.note;
 
     let profitLossRate = 0;
     if (buyCost > 0) {
-      profitLossRate = Number(((stockProfit / buyCost) * 100).toFixed(2));
+      profitLossRate = Number(((realizedPnl / buyCost) * 100).toFixed(2));
     }
 
     return {
       tradesId: d.tradeId,
       stockId: d.stockId,
       stockName: d.stockName,
-      tradesDate: formatDateToSlash(d.dealDate),
-      buyPrice: Number.isFinite(buyPrice) ? buyPrice : 0,
-      sellPrice: Number.isFinite(sellPrice) ? sellPrice : 0,
-      quantity,
-      buyCost: Number.isFinite(buyCost) ? buyCost : 0,
-      actualRealizedPnl: Number.isFinite(actualRealizedPnl) ? actualRealizedPnl : 0,
-      stockProfit: Number.isFinite(stockProfit) ? stockProfit : 0,
-      profitLossRate,
-      note: d.note ?? null,
+      buyPrice: buyPrice,
+      quantity: quantity,
+      buyCost: buyCost,
+      buyDate: buyDate, // "YYYY/MM/DD"
+      buyNote: buyNote,
+      sellPrice: sellPrice,
+      sellQty: sellQty,
+      sellCost: sellCost,
+      sellDate: sellDate, // "YYYY-MM-DD" 或 "YYYY/MM/DD"
+      realizedPnl: realizedPnl,
+      profitLossRate: profitLossRate,
+      sellNote: sellNote,
+      // tradesDate: formatDateToSlash(d.dealDate),
+      // buyPrice: Number.isFinite(buyPrice) ? buyPrice : 0,
+      // sellPrice: Number.isFinite(sellPrice) ? sellPrice : 0,
+      // quantity,
+      // buyCost: Number.isFinite(buyCost) ? buyCost : 0,
+      // actualRealizedPnl: Number.isFinite(actualRealizedPnl) ? actualRealizedPnl : 0,
+      // stockProfit: Number.isFinite(stockProfit) ? stockProfit : 0,
+      // profitLossRate,
+      // note: d.note ?? null,
     };
   });
 
@@ -152,15 +168,17 @@ export async function getUserDashboardTrends(
     }
   }
 
-  // 補滿 1~12 月
-  const series: DashboardTrendPoint[] = [];
-  for (let m = 1; m <= 12; m++) {
-    const period = `${year}-${String(m).padStart(2, '0')}`;
-    const pnl = monthPnlMap.get(m) ?? 0;
-    series.push({ period, pnl });
-  }
+// 補滿 1~12 月，拆成前端需要的 period[] / pnl[]
+const period: string[] = [];
+const pnl: number[] = [];
+for (let m = 1; m <= 12; m++) {
+  const p = `${year}-${String(m).padStart(2, '0')}`;
+  const v = monthPnlMap.get(m) ?? 0;
+  period.push(p);
+  pnl.push(v);
+}
 
-  return { series };
+return { period, pnl };
 }
 
 // 建立歷史紀錄（實際建倉 + 賣出）

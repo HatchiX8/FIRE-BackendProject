@@ -142,7 +142,7 @@ export async function createNewAsset(
     throw httpError(400, '價格、股數與成本必須大於 0');
   }
 
-  const buyDateObj = parseYMDSlashDate(buyDate, '買進日期');
+  const buyDateObj = parseYMDSlashDateLocal(buyDate, '買進日期');
 
   // 3) 成本以使用者輸入為準（固定兩位小數）
   const buyCost2 = roundTo2(buyCost);
@@ -191,8 +191,29 @@ export async function createNewAsset(
 
     const capital = await getOrCreateCapitalRow(userId, manager);
 
-    if (buyCost > Number(capital.totalInvest)) {
-      throw httpError(400, '投入金額不足，無法建立資產');
+    // ✅ 計算現有所有 active lots 的總持股成本
+    const stockCostResult = await lotsRepo
+      .createQueryBuilder('l')
+      .select('COALESCE(SUM(l.remainingCost), 0)', 'total')
+      .where('l.user_id = :userId', { userId })
+      .andWhere('l.is_voided = false')
+      .andWhere('l.remaining_quantity > 0')
+      .getRawOne<{ total: string }>();
+
+    const currentStockCost = stockCostResult ? Number(stockCostResult.total) : 0;
+    const availableCash = Number(capital.totalInvest) - currentStockCost;
+
+    // ✅ 如果現金已透支，不允許建倉
+    if (availableCash < 0) {
+      throw httpError(400, '現金部位已不足，無法進行操作');
+    }
+
+    // ✅ 檢查新建倉是否會超過可用現金
+    if (buyCost > availableCash) {
+      throw httpError(
+        400,
+        `所輸入的買進成本大於現金部位，無法成功編輯，請確認可用現金：${availableCash.toFixed(2)}`
+      );
     }
 
     const stockMeta = await stockRepo.findOne({ where: { stockId } });
@@ -252,7 +273,7 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
     throw httpError(400, '價格、股數與成本必須大於 0');
   }
 
-  const buyDateObj = parseYMDSlashDate(buyDate, '買進日期');
+  const buyDateObj = parseYMDSlashDateLocal(buyDate, '買進日期');
   const now = new Date();
 
   // 統一兩位小數字串
@@ -289,8 +310,29 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
     }
 
     const capital = await getOrCreateCapitalRow(userId, manager);
-    if (buyCost > Number(capital.totalInvest)) {
-      throw httpError(400, '投入金額不足，無法編輯資產');
+    // ✅ 計算現有所有 active lots 的總持股成本
+    const stockCostResult = await lotsRepo
+      .createQueryBuilder('l')
+      .select('COALESCE(SUM(l.remainingCost), 0)', 'total')
+      .where('l.user_id = :userId', { userId })
+      .andWhere('l.is_voided = false')
+      .andWhere('l.remaining_quantity > 0')
+      .getRawOne<{ total: string }>();
+
+    const currentStockCost = stockCostResult ? Number(stockCostResult.total) : 0;
+    const availableCash = Number(capital.totalInvest) - currentStockCost;
+
+    // 如果現金已透支，不允許建倉
+    if (availableCash < 0) {
+      throw httpError(400, '現金部位已不足，無法進行操作');
+    }
+
+    // 檢查是否會超過可用現金
+    if (buyCost > availableCash) {
+      throw httpError(
+        400,
+        `所輸入的買進成本大於現金部位，無法成功編輯，請確認可用現金：${availableCash.toFixed(2)}`
+      );
     }
 
     // 作廢舊的 buy deal
@@ -536,15 +578,18 @@ async function getOrCreateCapitalRow(
   return repo.save(created);
 }
 
-function parseYMDSlashDate(input: string, fieldName: string): Date {
-  const [y, m, d] = input.split('/');
+// 解析 "YYYY/MM/DD"
+function parseYMDSlashDateLocal(input: string, fieldName: string): Date {
+  // ✅ 支援 "-" 與 "/"
+  const sep = input.includes('-') ? '-' : '/';
+  const [y, m, d] = input.split(sep);
   const year = Number(y);
   const month = Number(m);
   const day = Number(d);
 
   const dt = new Date(year, month - 1, day);
   if (!year || !month || !day || Number.isNaN(dt.getTime())) {
-    throw httpError(400, `${fieldName}格式錯誤，需為 YYYY/MM/DD`);
+    throw httpError(400, `${fieldName}格式錯誤，需為 YYYY/MM/DD 或 YYYY-MM-DD`);
   }
   return dt;
 }

@@ -1,17 +1,35 @@
 // 單筆歷史交易資料
+// export interface DashboardTradeReportItem {
+//   tradesId: string;
+//   stockId: string;
+//   stockName: string;
+//   tradesDate: string; // "YYYY/MM/DD"
+//   buyPrice: number;
+//   sellPrice: number;
+//   quantity: number;
+//   buyCost: number;
+//   actualRealizedPnl: number;
+//   stockProfit: number;
+//   profitLossRate: number;
+//   note: string | null;
+// }
+
 export interface DashboardTradeReportItem {
   tradesId: string;
   stockId: string;
   stockName: string;
-  tradesDate: string; // "YYYY/MM/DD"
   buyPrice: number;
-  sellPrice: number;
   quantity: number;
   buyCost: number;
-  actualRealizedPnl: number;
-  stockProfit: number;
+  buyDate: string; // "YYYY/MM/DD"
+  buyNote?: string | null;
+  sellPrice: number;
+  sellQty: number;
+  sellCost: number;
+  sellDate: string; // "YYYY-MM-DD" 或 "YYYY/MM/DD"
+  realizedPnl: number;
   profitLossRate: number;
-  note: string | null;
+  sellNote?: string | null;
 }
 
 // 回傳格式
@@ -31,7 +49,8 @@ export interface DashboardTrendPoint {
 
 // 趨勢回傳格式
 export interface DashboardTrendsDto {
-  series: DashboardTrendPoint[];
+  period: string[];
+  pnl: number[];
 }
 
 // 建立歷史紀錄用的請求 body 型別（與 service 內 DTO 結構對應）
