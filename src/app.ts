@@ -5,9 +5,9 @@ import cors from 'cors';
 // ----------登入驗證----------
 import { setupGoogleStrategy } from './modules/auth/google.strategy.js';
 import { authRouter } from './modules/auth/auth.router.js';
-import { rateLimitMiddleware } from '@/middlewares/real-limit.middleware.js';
+import { rateLimitMiddleware } from './middlewares/real-limit.middleware.js';
 import { authMiddleware } from './middlewares/auth.middleware.js';
-import { requireAdmin } from '@/middlewares/requireAdmin.js';
+import { requireAdmin } from './middlewares/requireAdmin.js';
 
 // ---------------------------
 
