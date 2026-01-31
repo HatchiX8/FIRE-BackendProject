@@ -2,7 +2,7 @@ import { DataSource } from 'typeorm';
 import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 
-import { UserEntity } from '../user/user.entity.js';
+import { UserSchema } from '@/entity/user.schema.js';
 import { RefreshTokenEntity } from './refresh-token.entity.js';
 import { GoogleProfile } from './auth.normalize.js';
 import { signAccessToken, signRefreshToken } from './jwt.js';
@@ -58,7 +58,7 @@ export async function googleOAuthLogin(
   accessSecret: string,
   refreshSecret: string
 ): Promise<GoogleLoginResult> {
-  const userRepo = ds.getRepository(UserEntity);
+  const userRepo = ds.getRepository(UserSchema);
   const refreshRepo = ds.getRepository(RefreshTokenEntity);
 
   // 1) 找 user：先用 googleId，找不到再用 email

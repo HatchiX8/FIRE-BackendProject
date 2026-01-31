@@ -1,6 +1,14 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
+import { StockInfoSchema } from '../entity/stockInfo.schema.js';
+import { StockPricesSchema } from '../entity/currentStockPrices.schema.js';
+import { UserSchema } from '../entity/user.schema.js';
+import { UserCapitalSchema } from '../entity/portfolioSummaries.schema.js';
+import { DealsSchema } from '../entity/deals.schema.js';
+import { LotsSchema } from '../entity/lots.schema.js';
+
+import { RefreshTokenEntity } from '../modules/auth/refresh-token.entity.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,9 +30,13 @@ export const AppDataSource = new DataSource({
   logging: false,
 
   entities: [
-    isBuilt
-      ? path.resolve(__dirname, '../**/*.entity.js')
-      : path.resolve(__dirname, '../**/*.entity.ts'),
+    StockInfoSchema,
+    StockPricesSchema,
+    UserSchema,
+    UserCapitalSchema,
+    DealsSchema,
+    LotsSchema,
+    RefreshTokenEntity,
   ],
   migrations: [
     isBuilt

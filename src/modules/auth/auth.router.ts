@@ -4,8 +4,8 @@ import passport from 'passport';
 
 import { googleOAuthLogin, logoutByRefreshToken } from './auth.service.js';
 import { toGoogleProfile } from './auth.normalize.js';
-import { AppDataSource } from '../../db/data-source.js';
-import { authMiddleware } from '../../middlewares/auth.middleware.js';
+import { AppDataSource } from '@/db/data-source.js';
+import { authMiddleware } from '@/middlewares/auth.middleware.js';
 import { checkLogin } from './auth.verify.service.js';
 import { refreshAccessToken } from './auth.refresh.service.js';
 // ----------初始化----------

@@ -18,3 +18,11 @@ export type UpdateProfileDto = {
 export type AccountUpgradeRequestDto = {
   upgradeReason: string;
 };
+
+export type TotalInvestDepositDto = {
+  amount: number;
+};
+
+export type UserTotalInvestDto = {
+  totalInvest: number;
+};

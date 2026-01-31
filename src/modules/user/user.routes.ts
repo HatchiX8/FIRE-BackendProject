@@ -1,14 +1,28 @@
 import { Router } from 'express';
-import { getUserInfoController } from './user.controller.js';
-import { authMiddleware } from '../../middlewares/auth.middleware.js';
-import { makeUpdateProfileHandler, makeAccountUpgradeHandler } from './user.controller.js';
-import { AppDataSource } from '../../db/data-source.js';
-import { UserEntity } from './user.entity.js';
+import {
+  getUserInfoController,
+  makeUpdateProfileHandler,
+  makeAccountUpgradeHandler,
+  depositTotalInvestHandler,
+  addInvestHandler,
+  withdrawalInvestHandler,
+  getUserTotalInvestHandler,
+} from './user.controller.js';
+import { AppDataSource } from '@/db/data-source.js';
+import { UserSchema } from '@/entity/user.schema.js';
 
 export const userRouter = Router();
-const usersRepo = AppDataSource.getRepository(UserEntity);
-userRouter.get('/info', authMiddleware, getUserInfoController);
+const usersRepo = AppDataSource.getRepository(UserSchema);
+userRouter.get('/info', getUserInfoController);
 
-userRouter.patch('/update', authMiddleware, makeUpdateProfileHandler(usersRepo));
+userRouter.patch('/update', makeUpdateProfileHandler(usersRepo));
 
-userRouter.post('/account-upgrade', authMiddleware, makeAccountUpgradeHandler(usersRepo));
+userRouter.post('/account-upgrade', makeAccountUpgradeHandler(usersRepo));
+
+userRouter.post('/update/totalInvest/deposit', depositTotalInvestHandler);
+
+userRouter.post('/update/totalInvest/add', addInvestHandler);
+
+userRouter.post('/update/totalInvest/withdrawal', withdrawalInvestHandler);
+
+userRouter.get('/totalInvest', getUserTotalInvestHandler);
