@@ -64,7 +64,7 @@ authRouter.get(
       httpOnly: true,
       secure: isSecureEnv,
       sameSite: isSecureEnv ? 'none' : 'lax',
-      path: '/', // 建議限制只有 /auth 底下的 refresh/logout 會帶這個 cookie
+      path: '/api/v1/user', // 建議限制只有 /auth 底下的 refresh/logout 會帶這個 cookie
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 天（和 refresh token 的有效期限一樣）
     });
 
@@ -125,7 +125,7 @@ authRouter.post('/logout', async (req, res) => {
     httpOnly: true,
     secure: isSecureEnv,
     sameSite: isSecureEnv ? 'none' : 'lax',
-    path: '/',
+    path: '/api/v1/user',
   });
 
   // 3) 回應（登出建議 idempotent：永遠回 ok）
