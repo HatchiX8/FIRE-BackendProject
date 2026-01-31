@@ -25,21 +25,9 @@ import { errorHandler } from './middlewares/error-handler.js';
 export const createApp = () => {
   
   const app = express();
-  app.set('trust proxy', 1);
   app.use(
-    // cors({
-    //   origin: process.env.FRONTEND_URL,
-    //   credentials: true,
-    // })
     cors({
-      origin: (origin, cb) => {
-      const allow = new Set([
-        process.env.FRONTEND_URL!,
-        // staging / dev 也加進來
-      ]);
-      if (!origin) return cb(null, true);
-      return allow.has(origin) ? cb(null, true) : cb(new Error('CORS blocked'));
-      },
+      origin: process.env.FRONTEND_URL,
       credentials: true,
     })
   );
