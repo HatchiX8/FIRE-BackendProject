@@ -26,9 +26,24 @@ export const createApp = () => {
   const app = express();
 
   app.use(
+    // cors({
+    //   origin: process.env.FRONTEND_URL,
+    //   credentials: true,
+    // })
     cors({
-      origin: process.env.FRONTEND_URL,
-      credentials: true,
+    origin: (origin, callback) => {
+      const allowList = [
+        process.env.FRONTEND_URL,
+      ];
+
+      if (!origin) return callback(null, true); // same-origin / server call
+      if (allowList.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
     })
   );
 
