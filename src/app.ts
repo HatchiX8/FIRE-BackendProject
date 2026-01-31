@@ -23,27 +23,24 @@ import { notFound } from './middlewares/not-found.js';
 import { errorHandler } from './middlewares/error-handler.js';
 
 export const createApp = () => {
+  
   const app = express();
-
+  app.set('trust proxy', 1);
   app.use(
     // cors({
     //   origin: process.env.FRONTEND_URL,
     //   credentials: true,
     // })
     cors({
-    origin: (origin, callback) => {
-      const allowList = [
-        process.env.FRONTEND_URL,
-      ];
-
-      if (!origin) return callback(null, true); // same-origin / server call
-      if (allowList.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
+      origin: (origin, cb) => {
+      const allow = new Set([
+        process.env.FRONTEND_URL!,
+        // staging / dev 也加進來
+      ]);
+      if (!origin) return cb(null, true);
+      return allow.has(origin) ? cb(null, true) : cb(new Error('CORS blocked'));
+      },
+      credentials: true,
     })
   );
 
