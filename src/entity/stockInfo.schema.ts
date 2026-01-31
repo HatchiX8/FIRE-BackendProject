@@ -20,7 +20,7 @@ export const StockInfoSchema = new EntitySchema<StockInfoEntity>({
     stockId: {
       name: 'stock_id',
       type: 'varchar',
-      length: 10,
+      length: 20,
       primary: true,
     },
     stockName: {

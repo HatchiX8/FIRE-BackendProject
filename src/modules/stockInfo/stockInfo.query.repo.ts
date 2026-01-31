@@ -23,6 +23,14 @@ export class StockInfoRepository {
     this.repo = dataSource.getRepository(StockInfoSchema);
   }
 
+    async deleteAll(): Promise<void> {
+    await this.repo
+      .createQueryBuilder()
+      .delete()
+      .from(StockInfoSchema)
+      .execute();
+  }
+
   async upsertMany(rows: Pick<StockInfoEntity, 'stockId' | 'stockName' | 'note'>[]): Promise<void> {
     await this.repo.upsert(rows, ['stockId']);
   }

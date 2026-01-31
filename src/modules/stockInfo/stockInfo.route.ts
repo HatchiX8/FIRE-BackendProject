@@ -16,6 +16,7 @@ stockInfoRouter.post(
   buildStockInfoSyncHandler(AppDataSource)
 );
 
+// 這邊因為不使用第三方API，所以不需要額外的requireInternalKey
 stockInfoRouter.post('/admin/stockMetadata/sync', requireInternalKey, syncStockMetadata);
 
 stockInfoRouter.get('/stockInfo', authMiddleware, getStockInfo);
