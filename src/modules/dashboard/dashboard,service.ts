@@ -294,13 +294,13 @@ export async function createDashboardNewReport(
 
     // ✅ 今日交易數檢查（只有有上限的角色才檢查）
     //    歷史紀錄會產生 2 筆 deals（1 buy + 1 sell），所以要確保 count + 2 <= limit
-    if (dailyTradesLimit != null) {
+ if (dailyTradesLimit != null) {
       const { start, end } = getTodayRange();
       const todayTradesCount = await dealsRepo
         .createQueryBuilder('d')
         .where('d.userId = :userId', { userId })
         .andWhere('d.isVoided = false')
-        .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
+        .andWhere('d.createdAt >= :start AND d.createdAt < :end', {  // ⚠️ 改成 createdAt
           start,
           end,
         })
@@ -405,7 +405,7 @@ export async function updateDashboardReport(
   dto: UpdateDashboardReportDto,
   role: UserRole
 ): Promise<void> {
-  const { sellDate, sellPrice, sellQty, sellCost, realizedPnl, note } = dto;
+  const { sellDate, sellPrice, sellQty, sellCost, realizedPnl, sellNote } = dto;
 
   // 1) 基本欄位檢查
   if (
@@ -581,7 +581,7 @@ export async function updateDashboardReport(
     sellDeal.sellCost = sellCost2.toFixed(2);
     sellDeal.realizedPnl = realizedPnl2.toFixed(2);
     sellDeal.dealDate = sellDateObj;
-    sellDeal.note = note ?? null;
+    sellDeal.note = sellNote ?? null;
     // 若 DealsEntity 有 updatedAt，就一併更新
     (sellDeal as any).updatedAt = now;
 

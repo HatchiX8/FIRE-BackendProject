@@ -73,7 +73,8 @@ export async function createUserDashboardReportController(
       res.status(401).json({ message: '請先登入' });
       return;
     }
-
+    console.log('檢視role',res.locals);
+    
     const role = res.locals.role;
 
     await createDashboardNewReport(userId, req.body, role);
