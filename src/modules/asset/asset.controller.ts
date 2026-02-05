@@ -69,7 +69,7 @@ export async function newAssetController(
       res.status(401).json({ message: '請先登入' });
       return;
     }
-
+    
     const role = res.locals.role;
 
     await createNewAsset(userId, req.body, role);

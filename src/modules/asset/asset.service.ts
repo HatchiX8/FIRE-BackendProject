@@ -16,7 +16,7 @@ import type { EntityManager } from 'typeorm';
 type UserRole = 'guest' | 'user' | 'admin';
 
 // 訪客配額
-const GUEST_ACTIVE_LOTS_LIMIT = 5;
+const GUEST_ACTIVE_LOTS_LIMIT = 10;
 const GUEST_DAILY_TRADES_LIMIT = 50;
 // 一般使用者配額（之後要改成不限制，就把值調整或改成 Infinity）
 const BASIC_ACTIVE_LOTS_LIMIT = 200;
@@ -157,21 +157,24 @@ export async function createNewAsset(
     const { activeLotsLimit, dailyTradesLimit } = getQuotaByRole(role);
 
     // 1) active lots：未撤銷且剩餘股數 > 0 的 lot 數量（只有有上限的角色才檢查）
-    if (activeLotsLimit != null) {
-      const activeLotsCount = await lotsRepo
+   if (activeLotsLimit != null) {
+      const { start, end } = getTodayRange();
+      const todayCreatedLotsCount = await lotsRepo
         .createQueryBuilder('l')
         .where('l.user_id = :userId', { userId })
-        .andWhere('l.is_voided = false')
-        .andWhere('l.remaining_quantity > 0')
+        .andWhere('l.created_at >= :start AND l.created_at < :end', {
+          start,
+          end,
+        })
         .getCount();
 
-      if (activeLotsCount >= activeLotsLimit) {
-        throw httpError(429, '已達同時持倉上限，無法新增資產');
+      if (todayCreatedLotsCount >= activeLotsLimit) {
+        throw httpError(429, '已達今日建倉上限，無法新增資產，訪客會員可申請升級獲取更高配額');
       }
     }
 
     // 2) 今日交易數（buy + sell）（只有有上限的角色才檢查）
-    if (dailyTradesLimit != null) {
+     if (dailyTradesLimit != null) {
       const { start, end } = getTodayRange();
       const todayTradesCount = await dealsRepo
         .createQueryBuilder('d')
@@ -183,7 +186,6 @@ export async function createNewAsset(
         })
         .getCount();
 
-      // 這次建倉會再多一筆 buy deal，所以已經等於上限就不給建
       if (todayTradesCount >= dailyTradesLimit) {
         throw httpError(429, '已達今日可建立交易上限，無法新增資產');
       }
@@ -327,12 +329,20 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
       throw httpError(400, '現金部位已不足，無法進行操作');
     }
 
-    // 檢查是否會超過可用現金
-    if (buyCost > availableCash) {
-      throw httpError(
-        400,
-        `所輸入的買進成本大於現金部位，無法成功編輯，請確認可用現金：${availableCash.toFixed(2)}`
-      );
+    
+    // 計算「成本差額」= 新成本 - 舊成本
+    const oldCost = Number(lot.remainingCost);
+    const costDiff = buyCost - oldCost;
+
+    // 只有「成本增加」時才需要檢查現金
+    // 如果 costDiff <= 0（成本減少或不變），不需要檢查
+    if (costDiff > 0) {
+      if (costDiff > availableCash) {
+        throw httpError(
+          400,
+          `編輯後成本會增加 ${costDiff.toFixed(2)}，但可用現金只有 ${availableCash.toFixed(2)}，無法成功編輯`
+        );
+      }
     }
 
     // 作廢舊的 buy deal

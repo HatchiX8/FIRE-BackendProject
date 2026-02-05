@@ -116,7 +116,7 @@ export async function googleOAuthLogin(
   tokenRow = await refreshRepo.save(tokenRow);
 
   // 5) 簽 access token
-  const accessToken = signAccessToken(user.userId, accessSecret);
+  const accessToken = signAccessToken(user.userId, accessSecret,user.role);
 
   return {
     user: {

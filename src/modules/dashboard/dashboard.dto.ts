@@ -92,5 +92,5 @@ export interface UpdateDashboardReportDto {
   sellQty: number;
   sellCost: number;
   realizedPnl: number;
-  note?: string | null;
+  sellNote?: string | null;
 }
