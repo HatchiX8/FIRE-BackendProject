@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 
 type AccessTokenPayload = {
   userId: string;
+  role: 'guest' | 'user' | 'admin';
 };
 
 type RefreshTokenPayload = {
@@ -12,8 +13,8 @@ type RefreshTokenPayload = {
 const ACCESS_EXPIRES_IN = '15m';
 const REFRESH_EXPIRES_IN = '30d';
 
-export function signAccessToken(userId: string, secret: string): string {
-  const payload: AccessTokenPayload = { userId };
+export function signAccessToken(userId: string, secret: string, role: 'guest' | 'user' | 'admin' = 'guest'): string {
+  const payload: AccessTokenPayload = { userId,role };
   return jwt.sign(payload, secret, { expiresIn: ACCESS_EXPIRES_IN });
 }
 

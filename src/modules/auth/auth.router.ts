@@ -4,7 +4,7 @@ import passport from 'passport';
 
 import { googleOAuthLogin, logoutByRefreshToken } from './auth.service.js';
 import { toGoogleProfile } from './auth.normalize.js';
-import { AppDataSource } from '../../db/data-source.js';
+import { AppDataSource } from '@/db/data-source.js';
 import { authMiddleware } from '../../middlewares/auth.middleware.js';
 import { checkLogin } from './auth.verify.service.js';
 import { refreshAccessToken } from './auth.refresh.service.js';
@@ -125,7 +125,7 @@ authRouter.post('/logout', async (req, res) => {
     httpOnly: true,
     secure: isSecureEnv,
     sameSite: isSecureEnv ? 'none' : 'lax',
-    path: '/auth',
+    path: '/api/v1/user',
   });
 
   // 3) 回應（登出建議 idempotent：永遠回 ok）

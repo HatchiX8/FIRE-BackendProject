@@ -15,6 +15,7 @@ type AccessTokenPayload = {
   userId: string;
   iat?: number;
   exp?: number;
+  role: 'guest' | 'user' | 'admin';
 };
 
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
@@ -42,6 +43,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
 
     // 5) 掛到 res.locals（避免 TS 擴充 req 型別）
     res.locals.userId = payload.userId;
+    res.locals.role = payload.role;
 
     return next();
   } catch (err) {
