@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 
 import { RefreshTokenEntity } from './refresh-token.entity.js';
 import { signAccessToken } from './jwt.js';
+import { UserSchema } from '@/entity/user.schema.js';
 
 type RefreshPayload = { userId: string; tokenId: string; iat?: number; exp?: number };
 
@@ -54,7 +55,12 @@ export async function refreshAccessToken(
   // 核對 hash
   if (row.tokenHash !== sha256(refreshToken)) return null;
 
+  // 從資料庫查詢使用者角色
+  const userRepo = ds.getRepository(UserSchema);
+  const user = await userRepo.findOne({ where: { userId: payload.userId } });
+  if (!user) return null; // 使用者已被刪除
+
   // 簽新的 access
-  const accessToken = signAccessToken(payload.userId, accessSecret);
+  const accessToken = signAccessToken(payload.userId,user.role, accessSecret);
   return { accessToken };
 }
