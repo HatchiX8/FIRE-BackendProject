@@ -78,11 +78,11 @@ npm run dev
 - 重要操作皆進行驗證與權限控管
 
 範例路由：
-GET    /api/v1/auth/google
-GET    /api/v1/auth/google/callback
-POST   /api/v1/assets
-POST   /api/v1/reports
-PATCH  /api/v1/users/me
+- GET    /api/v1/auth/google
+- GET    /api/v1/auth/google/callback
+- POST   /api/v1/assets
+- POST   /api/v1/reports
+- PATCH  /api/v1/users/me
 
 ## Auth Flow
 1. 使用者透過Google OAuth 登入
