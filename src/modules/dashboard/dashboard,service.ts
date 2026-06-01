@@ -81,8 +81,8 @@ export async function getUserDashboardReports(
     const sellNote = d.note;
 
     let profitLossRate = 0;
-    if (buyCost > 0) {
-      profitLossRate = Number(((realizedPnl / buyCost) * 100).toFixed(2));
+    if (sellCost > 0) {
+      profitLossRate = Number(((realizedPnl / sellCost) * 100).toFixed(2));
     }
 
     return {
