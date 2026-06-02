@@ -1,5 +1,3 @@
-import { AppDataSource } from '@/db/data-source.js';
-import { UserSchema } from '@/entity/user.schema.js';
 import { formatDateTime, diffDays } from '@/utils/index.js';
 import type {
   UpgradeRequestItemDto,
@@ -8,21 +6,11 @@ import type {
   ActivationStatus,
 } from './upgrade.dto.js';
 import { httpError } from '@/utils/index.js';
+import { upgradeRepository } from './upgrade.repository.js';
 
 // ----------取得申請者----------
 export async function getPendingUpgradeRequests(): Promise<UpgradeRequestItemDto[]> {
-  const userRepo = AppDataSource.getRepository(UserSchema);
-
-  const users = await userRepo.find({
-    where: { upgradePlan: 'pending' },
-    select: {
-      userId: true,
-      userName: true,
-      userNote: true,
-      updatedAt: true,
-    },
-    order: { updatedAt: 'ASC' },
-  });
+  const users = await upgradeRepository.findPendingUpgradeRequests();
 
   return users.map((u) => ({
     id: u.userId,
@@ -35,19 +23,7 @@ export async function getPendingUpgradeRequests(): Promise<UpgradeRequestItemDto
 
 // ----------取得使用者----------
 export async function getUserList(): Promise<UserItemDto[]> {
-  const userRepo = AppDataSource.getRepository(UserSchema);
-
-  const users = await userRepo.find({
-    where: { role: 'user' },
-    select: {
-      userId: true,
-      userName: true,
-      // adminNote: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-    order: { updatedAt: 'ASC' },
-  });
+  const users = await upgradeRepository.findGeneralUsers();
 
   return users.map((u) => ({
     id: u.userId,
@@ -65,19 +41,8 @@ export async function reviewUpgradeRequest(params: {
   status: ReviewStatus;
   userNote: string;
 }): Promise<void> {
-  const userRepo = AppDataSource.getRepository(UserSchema);
-
   // 因為審核者初期只有一位，故沒有更新 reviewerId 和 reviewedAt 欄位，如有需要可額外添加
-  const user = await userRepo.findOne({
-    where: { userId: params.userId },
-    select: {
-      userId: true,
-      role: true,
-      upgradePlan: true,
-      userNote: true,
-      updatedAt: true,
-    },
-  });
+  const user = await upgradeRepository.findUpgradeReviewUser(params.userId);
 
   if (!user) {
     throw httpError(404, '查無申請者資料');
@@ -99,7 +64,7 @@ export async function reviewUpgradeRequest(params: {
     user.role = 'user';
   }
 
-  await userRepo.save(user);
+  await upgradeRepository.saveUser(user);
 }
 // ---------------------------
 
@@ -109,17 +74,7 @@ export async function patchUserActivation(params: {
   status: ActivationStatus; // downgrade | ban
   userNote: string;
 }): Promise<void> {
-  const userRepo = AppDataSource.getRepository(UserSchema);
-
-  const user = await userRepo.findOne({
-    where: { userId: params.userId },
-    select: {
-      userId: true,
-      role: true,
-      userNote: true,
-      upgradePlan: true,
-    },
-  });
+  const user = await upgradeRepository.findActivationUser(params.userId);
 
   if (!user) {
     throw httpError(404, '查無使用者資料');
@@ -134,6 +89,6 @@ export async function patchUserActivation(params: {
   // （可選）若你想先留痕，未來擴充 ban 分類可用：
   // user.lastAdminAction = params.status;
 
-  await userRepo.save(user);
+  await upgradeRepository.saveUser(user);
 }
 // -------------------------------
