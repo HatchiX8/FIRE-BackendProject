@@ -1,10 +1,8 @@
-import { DataSource } from 'typeorm';
 import jwt from 'jsonwebtoken';
 import { createHash } from 'crypto';
 
-import { RefreshTokenEntity } from './refresh-token.entity.js';
 import { signAccessToken } from './jwt.js';
-import { UserSchema } from '@/entity/user.schema.js';
+import { authRepository } from './auth.repository.js';
 
 type RefreshPayload = { userId: string; tokenId: string; iat?: number; exp?: number };
 
@@ -25,7 +23,6 @@ function parseRefreshPayload(decoded: unknown): RefreshPayload | null {
 }
 
 export async function refreshAccessToken(
-  ds: DataSource,
   refreshToken: string,
   accessSecret: string,
   refreshSecret: string
@@ -42,8 +39,7 @@ export async function refreshAccessToken(
 
   if (!payload) return null;
 
-  const repo = ds.getRepository(RefreshTokenEntity);
-  const row = await repo.findOne({ where: { id: payload.tokenId } });
+  const row = await authRepository.findRefreshTokenById(payload.tokenId);
   if (!row) return null;
 
   // 可選：檢查 expiresAt（若你 DB 有維護）
@@ -56,8 +52,7 @@ export async function refreshAccessToken(
   if (row.tokenHash !== sha256(refreshToken)) return null;
 
   // 從資料庫查詢使用者角色
-  const userRepo = ds.getRepository(UserSchema);
-  const user = await userRepo.findOne({ where: { userId: payload.userId } });
+  const user = await authRepository.findUserById(payload.userId);
   if (!user) return null; // 使用者已被刪除
 
   // 簽新的 access

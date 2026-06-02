@@ -1,11 +1,9 @@
-import { DataSource } from 'typeorm';
 import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 
-import { UserSchema } from '@/entity/user.schema.js';
-import { RefreshTokenEntity } from './refresh-token.entity.js';
 import { GoogleProfile } from './auth.normalize.js';
 import { signAccessToken, signRefreshToken } from './jwt.js';
+import { authRepository } from './auth.repository.js';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -53,28 +51,22 @@ function parseRefreshPayload(decoded: unknown): RefreshPayload | null {
 }
 
 export async function googleOAuthLogin(
-  ds: DataSource,
   profile: GoogleProfile,
   accessSecret: string,
   refreshSecret: string
 ): Promise<GoogleLoginResult> {
-  const userRepo = ds.getRepository(UserSchema);
-  const refreshRepo = ds.getRepository(RefreshTokenEntity);
-
   // 1) 找 user：先用 googleId，找不到再用 email
-  let user =
-    (await userRepo.findOne({ where: { googleId: profile.id } })) ??
-    (await userRepo.findOne({ where: { userEmail: profile.email } }));
+  let user = await authRepository.findUserByGoogleIdOrEmail(profile.id, profile.email);
 
   // 2) 沒有就建立；有就補 googleId / 更新資料（你要存 picture 就在這更新）
   if (!user) {
-    user = userRepo.create({
-      userEmail: profile.email,
-      userName: profile.name,
+    user = authRepository.createGoogleUser({
+      email: profile.email,
+      name: profile.name,
       googleId: profile.id,
-      avatarUrl: profile.picture,
+      picture: profile.picture,
     });
-    user = await userRepo.save(user);
+    user = await authRepository.saveUser(user);
   } else {
     let changed = false;
 
@@ -96,24 +88,24 @@ export async function googleOAuthLogin(
     }
 
     if (changed) {
-      user = await userRepo.save(user);
+      user = await authRepository.saveUser(user);
     }
   }
 
   // 3) 先寫一筆 refresh token row（拿到 tokenId）
   const expiresAt = new Date(Date.now() + THIRTY_DAYS_MS);
-  let tokenRow = refreshRepo.create({
+  let tokenRow = authRepository.createRefreshToken({
     userId: user.userId,
     expiresAt,
     tokenHash: '', // 先塞空字串，等簽完 token 再回寫 hash
     revokedAt: null,
   });
-  tokenRow = await refreshRepo.save(tokenRow);
+  tokenRow = await authRepository.saveRefreshToken(tokenRow);
 
   // 4) 簽 refresh token（payload 帶 userId + tokenId），只存 hash 到 DB
   const refreshToken = signRefreshToken(user.userId, tokenRow.id, refreshSecret);
   tokenRow.tokenHash = sha256(refreshToken);
-  tokenRow = await refreshRepo.save(tokenRow);
+  tokenRow = await authRepository.saveRefreshToken(tokenRow);
 
   // 5) 簽 access token
   const accessToken = signAccessToken(user.userId, user.role,accessSecret);
@@ -133,7 +125,6 @@ export async function googleOAuthLogin(
 }
 
 export async function logoutByRefreshToken(
-  ds: DataSource,
   refreshToken: string,
   refreshSecret: string
 ): Promise<boolean> {
@@ -144,9 +135,7 @@ export async function logoutByRefreshToken(
     const payload = parseRefreshPayload(decoded);
     if (!payload) return true;
 
-    const refreshRepo = ds.getRepository(RefreshTokenEntity);
-
-    const row = await refreshRepo.findOne({ where: { id: payload.tokenId } });
+    const row = await authRepository.findRefreshTokenById(payload.tokenId);
     if (!row) return true;
 
     // 必要的歸屬檢查
@@ -157,7 +146,7 @@ export async function logoutByRefreshToken(
     if (row.tokenHash !== incomingHash) return false;
 
     // 刪除整筆，避免表一直累積
-    await refreshRepo.delete({ id: row.id });
+    await authRepository.deleteRefreshTokenById(row.id);
     return true;
   } catch {
     // refresh token 過期/驗簽失敗 -> 視為已登出

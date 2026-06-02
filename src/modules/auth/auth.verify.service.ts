@@ -1,5 +1,4 @@
-import { DataSource } from 'typeorm';
-import { UserSchema } from '@/entity/user.schema.js';
+import { authRepository } from './auth.repository.js';
 
 export type MeResponse = {
   id: string;
@@ -12,10 +11,8 @@ export type MeResponse = {
   is_active: boolean;
 };
 
-export async function checkLogin(ds: DataSource, userId: string): Promise<MeResponse | null> {
-  const repo = ds.getRepository(UserSchema);
-
-  const user = await repo.findOne({ where: { userId } });
+export async function checkLogin(userId: string): Promise<MeResponse | null> {
+  const user = await authRepository.findUserById(userId);
   if (!user) return null;
 
   return {
