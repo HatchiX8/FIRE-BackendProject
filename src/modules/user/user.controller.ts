@@ -1,6 +1,4 @@
 import { Request, Response, NextFunction, type RequestHandler } from 'express';
-import { Repository } from 'typeorm';
-import { type UserEntity } from '@/entity/user.schema.js';
 import { parseUpdateProfileDto, parseAccountUpgradeRequestDto } from './users.validators.js';
 import {
   getUserInfo,
@@ -11,7 +9,6 @@ import {
   withdrawalTotalInvest,
   getUserTotalInvest,
 } from './user.service.js';
-import { ca } from 'zod/locales';
 
 export const getUserInfoController: RequestHandler = async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -37,47 +34,47 @@ export const getUserInfoController: RequestHandler = async (req, res, next) => {
   }
 };
 
-export const makeUpdateProfileHandler = (usersRepo: Repository<UserEntity>) => {
-  const doUpdateProfile = updateProfile(usersRepo);
-
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = res.locals.userId as string | undefined;
-      if (!userId) {
-        res.status(401).json({ message: '請先登入' });
-        return;
-      }
-
-      const dto = parseUpdateProfileDto(req.body);
-      await doUpdateProfile(userId, dto);
-
-      res.status(200).json({ message: '成功更新使用者資料' });
-    } catch (err) {
-      next(err);
+export async function updateProfileHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
     }
-  };
-};
+
+    const dto = parseUpdateProfileDto(req.body);
+    await updateProfile(userId, dto);
+
+    res.status(200).json({ message: '成功更新使用者資料' });
+  } catch (err) {
+    next(err);
+  }
+}
 
 // ----------帳號升級----------
-export const makeAccountUpgradeHandler = (usersRepo: Repository<UserEntity>) => {
-  const doRequest = requestAccountUpgrade(usersRepo);
-
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = res.locals.userId as string | undefined;
-      if (!userId) {
-        res.status(401).json({ message: '請先登入' });
-        return;
-      }
-
-      const dto = parseAccountUpgradeRequestDto(req.body);
-      await doRequest(userId, dto);
-      res.status(200).json({ message: '成功提交申請' });
-    } catch (err) {
-      next(err);
+export async function accountUpgradeHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const userId = res.locals.userId as string | undefined;
+    if (!userId) {
+      res.status(401).json({ message: '請先登入' });
+      return;
     }
-  };
-};
+
+    const dto = parseAccountUpgradeRequestDto(req.body);
+    await requestAccountUpgrade(userId, dto);
+    res.status(200).json({ message: '成功提交申請' });
+  } catch (err) {
+    next(err);
+  }
+}
 // ---------------------------
 
 // ----------資金操作----------

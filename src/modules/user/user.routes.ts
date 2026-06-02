@@ -1,23 +1,20 @@
 import { Router } from 'express';
 import {
   getUserInfoController,
-  makeUpdateProfileHandler,
-  makeAccountUpgradeHandler,
+  updateProfileHandler,
+  accountUpgradeHandler,
   depositTotalInvestHandler,
   addInvestHandler,
   withdrawalInvestHandler,
   getUserTotalInvestHandler,
 } from './user.controller.js';
-import { AppDataSource } from '@/db/data-source.js';
-import { UserSchema } from '@/entity/user.schema.js';
 
 export const userRouter = Router();
-const usersRepo = AppDataSource.getRepository(UserSchema);
 userRouter.get('/info', getUserInfoController);
 
-userRouter.patch('/update', makeUpdateProfileHandler(usersRepo));
+userRouter.patch('/update', updateProfileHandler);
 
-userRouter.post('/account-upgrade', makeAccountUpgradeHandler(usersRepo));
+userRouter.post('/account-upgrade', accountUpgradeHandler);
 
 userRouter.post('/update/totalInvest/deposit', depositTotalInvestHandler);
 
