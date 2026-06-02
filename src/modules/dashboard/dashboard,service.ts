@@ -1,8 +1,3 @@
-import { AppDataSource } from '@/db/data-source.js';
-import { DealsSchema, type DealsEntity } from '@/entity/deals.schema.js';
-import { LotsSchema, type LotsEntity } from '@/entity/lots.schema.js';
-import { UserCapitalSchema, type UserCapitalEntity } from '@/entity/portfolioSummaries.schema.js';
-import { StockInfoSchema } from '@/entity/stockInfo.schema.js';
 import type {
   DashboardReportsDto,
   DashboardTradeReportItem,
@@ -11,7 +6,7 @@ import type {
   UpdateDashboardReportDto,
 } from './dashboard.dto.js';
 import { httpError, roundTo2 } from '@/utils/index.js';
-import type { EntityManager } from 'typeorm';
+import { dashboardRepository } from './dashboard.repository.js';
 
 type UserRole = 'guest' | 'user' | 'admin';
 // ✅ 訪客配額
@@ -45,27 +40,15 @@ export async function getUserDashboardReports(
   const startStr = formatDateForSql(startDate); // "YYYY-MM-DD"
   const nextMonthStr = formatDateForSql(nextMonthStart);
 
-  const dealsRepo = AppDataSource.getRepository(DealsSchema);
+  const { rows, count } = await dashboardRepository.findUserSellDealsByPeriod(
+    userId,
+    startStr,
+    nextMonthStr,
+    safePage,
+    pageSize
+  );
 
-  // QueryBuilder：只抓使用者的賣出紀錄，並 join lots 取得 buyPrice
-  const qb = dealsRepo
-    .createQueryBuilder('d')
-    .leftJoinAndSelect('d.lot', 'l')
-    .where('d.userId = :userId', { userId })
-    .andWhere('d.type = :type', { type: 'sell' })
-    .andWhere('d.isVoided = false')
-    .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
-      start: startStr,
-      end: nextMonthStr,
-    })
-    .orderBy('d.dealDate', 'DESC')
-    .addOrderBy('d.createdAt', 'DESC') // 同日多筆時固定順序
-    .skip((safePage - 1) * pageSize)
-    .take(pageSize);
-
-  const [rows, count] = await qb.getManyAndCount();
-
-  const totalTrades: DashboardTradeReportItem[] = rows.map((d: DealsEntity) => {
+  const totalTrades: DashboardTradeReportItem[] = rows.map((d) => {
     const lot = d.lot; // 可能為 undefined（安全起見要處理）
 
     const buyPrice = lot ? Number(lot.buyPrice) : 0;
@@ -134,8 +117,6 @@ export async function getUserDashboardTrends(
     throw httpError(400, '年份格式不正確');
   }
 
-  const dealsRepo = AppDataSource.getRepository(DealsSchema);
-
   // 這一年： [year-01-01, (year+1)-01-01)
   const startDate = new Date(year, 0, 1);
   const nextYearStart = new Date(year + 1, 0, 1);
@@ -144,20 +125,7 @@ export async function getUserDashboardTrends(
   const nextYearStr = formatDateForSql(nextYearStart);
 
   // 只抓使用者該年度的賣出紀錄，按月份加總 realizedPnl
-  const raw = await dealsRepo
-    .createQueryBuilder('d')
-    .select(`TO_CHAR(d.dealDate, 'MM')`, 'month')
-    .addSelect('COALESCE(SUM(d.realizedPnl), 0)', 'pnl')
-    .where('d.userId = :userId', { userId })
-    .andWhere('d.type = :type', { type: 'sell' })
-    .andWhere('d.isVoided = false')
-    .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
-      start: startStr,
-      end: nextYearStr,
-    })
-    .groupBy(`TO_CHAR(d.dealDate, 'MM')`)
-    .orderBy(`TO_CHAR(d.dealDate, 'MM')`, 'ASC')
-    .getRawMany<{ month: string; pnl: string }>();
+  const raw = await dashboardRepository.findMonthlyRealizedPnl(userId, startStr, nextYearStr);
 
   // 把有資料的月份先放進 map，key 用數字月份 1~12
   const monthPnlMap = new Map<number, number>();
@@ -282,30 +250,17 @@ export async function createDashboardNewReport(
     throw httpError(400, '賣出成本大於總成本，請檢查輸入');
   }
 
-  return AppDataSource.transaction(async (manager) => {
+  return dashboardRepository.runTransaction(async (repo) => {
     const now = new Date();
-
-    const stockRepo = manager.getRepository(StockInfoSchema);
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const dealsRepo = manager.getRepository(DealsSchema);
-    const capitalRepo = manager.getRepository(UserCapitalSchema);
 
     // ✅ 依角色取得本次配額
     const { dailyTradesLimit } = getQuotaByRole(role);
 
     // ✅ 今日交易數檢查（只有有上限的角色才檢查）
     //    歷史紀錄會產生 2 筆 deals（1 buy + 1 sell），所以要確保 count + 2 <= limit
- if (dailyTradesLimit != null) {
+    if (dailyTradesLimit != null) {
       const { start, end } = getTodayRange();
-      const todayTradesCount = await dealsRepo
-        .createQueryBuilder('d')
-        .where('d.userId = :userId', { userId })
-        .andWhere('d.isVoided = false')
-        .andWhere('d.createdAt >= :start AND d.createdAt < :end', {  // ⚠️ 改成 createdAt
-          start,
-          end,
-        })
-        .getCount();
+      const todayTradesCount = await repo.countCreatedTrades(userId, start, end);
 
       // 這次建立歷史紀錄會多 2 筆 deals（buy + sell），檢查是否超限
       if (todayTradesCount + 2 > dailyTradesLimit) {
@@ -313,18 +268,18 @@ export async function createDashboardNewReport(
       }
     }
 
-    const capital = await getOrCreateCapitalRowDashboard(userId, manager);
+    const capital = await repo.getOrCreateCapitalRow(userId);
 
     // 檢查投入資金是否足夠建倉（沿用 asset 建立資產的邏輯）
     if (buyCost2 > Number(capital.totalInvest)) {
       throw httpError(400, '投入金額不足，無法建立交易歷史紀錄');
     }
 
-    const stockMeta = await stockRepo.findOne({ where: { stockId } });
+    const stockMeta = await repo.findStockMetaById(stockId);
     if (!stockMeta) throw httpError(400, '查無此股票代碼');
 
     // 6) 建立 lot（完整部位）
-    const lot = lotsRepo.create({
+    const lot = repo.createLot({
       userId,
       stockId: stockMeta.stockId,
       stockName: stockMeta.stockName,
@@ -335,11 +290,11 @@ export async function createDashboardNewReport(
       remainingCost: buyAmountStr,
       buyAmount: buyAmountStr,
       note: buyNote ?? null,
-    } satisfies Partial<LotsEntity>);
-    const savedLot = await lotsRepo.save(lot);
+    });
+    const savedLot = await repo.saveLot(lot);
 
     // 7) 建立 buy deal
-    const buyDeal = dealsRepo.create({
+    const buyDeal = repo.createDeal({
       userId,
       lotId: savedLot.lotId,
       stockId: stockMeta.stockId,
@@ -353,11 +308,11 @@ export async function createDashboardNewReport(
       dealDate: buyDateObj,
       isVoided: false,
       note: buyNote ?? null,
-    } satisfies Partial<DealsEntity>);
-    await dealsRepo.save(buyDeal);
+    });
+    await repo.saveDeal(buyDeal);
 
     // 8) 建立 sell deal（部分賣出）
-    const sellDeal = dealsRepo.create({
+    const sellDeal = repo.createDeal({
       userId,
       lotId: savedLot.lotId,
       stockId: stockMeta.stockId,
@@ -371,8 +326,8 @@ export async function createDashboardNewReport(
       dealDate: sellDateObj,
       isVoided: false,
       note: sellNote ?? null,
-    } satisfies Partial<DealsEntity>);
-    await dealsRepo.save(sellDeal);
+    });
+    await repo.saveDeal(sellDeal);
 
     // 9) 更新 lot 剩餘股數 & 剩餘成本
     const remainingQty = quantity - sellQty;
@@ -388,14 +343,14 @@ export async function createDashboardNewReport(
       savedLot.voidedAt = now;
     }
     savedLot.updatedAt = now;
-    await lotsRepo.save(savedLot);
+    await repo.saveLot(savedLot);
 
     // 10) 更新 capital：累加已實現損益到 totalInvest（沿用 sellAsset 邏輯）
     let nextTotalInvest = roundTo2(Number(capital.totalInvest) + realizedPnl2);
     if (nextTotalInvest < 0) nextTotalInvest = 0;
     capital.totalInvest = nextTotalInvest.toFixed(2);
     capital.updatedAt = now;
-    await capitalRepo.save(capital);
+    await repo.saveCapital(capital);
   });
 }
 
@@ -434,12 +389,8 @@ export async function updateDashboardReport(
 
   const sellDateObj = parseYMDSlashDateLocal(sellDate, '賣出日期');
 
-  await AppDataSource.transaction(async (manager) => {
+  await dashboardRepository.runTransaction(async (repo) => {
     const now = new Date();
-
-    const dealsRepo = manager.getRepository(DealsSchema);
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const capitalRepo = manager.getRepository(UserCapitalSchema);
 
     // ✅ 依角色取得本次配額
     const { dailyTradesLimit } = getQuotaByRole(role);
@@ -448,15 +399,7 @@ export async function updateDashboardReport(
     //    編輯只是修改 sell deal，不會增加新的 deals 筆數，但為了安全起見還是檢查一下
     if (dailyTradesLimit != null) {
       const { start, end } = getTodayRange();
-      const todayTradesCount = await dealsRepo
-        .createQueryBuilder('d')
-        .where('d.userId = :userId', { userId })
-        .andWhere('d.isVoided = false')
-        .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
-          start,
-          end,
-        })
-        .getCount();
+      const todayTradesCount = await repo.countDealDateTrades(userId, start, end);
 
       // 編輯歷史紀錄本身不會增加 deals 數量，所以只需確認不超過上限
       if (todayTradesCount > dailyTradesLimit) {
@@ -465,15 +408,7 @@ export async function updateDashboardReport(
     }
 
     // 2) 找出這筆要編輯的賣出紀錄
-    const sellDeal = await dealsRepo.findOne({
-      where: {
-        tradeId: tradesId,
-        userId,
-        type: 'sell',
-        isVoided: false,
-      },
-      relations: ['lot'],
-    });
+    const sellDeal = await repo.findActiveSellDealWithLot(userId, tradesId);
 
     if (!sellDeal) {
       throw httpError(404, '找不到要編輯的歷史紀錄');
@@ -483,12 +418,12 @@ export async function updateDashboardReport(
       throw httpError(400, '此歷史紀錄缺少對應的持倉資訊，無法編輯');
     }
 
-    const lot = await lotsRepo.findOne({ where: { lotId: sellDeal.lotId, userId } });
+    const lot = await repo.findUserLot(userId, sellDeal.lotId);
     if (!lot) {
       throw httpError(400, '找不到對應的持倉資料，無法編輯歷史紀錄');
     }
 
-    const capital = await getOrCreateCapitalRowDashboard(userId, manager);
+    const capital = await repo.getOrCreateCapitalRow(userId);
 
     // 3) 退回舊的賣出影響（回補）
     const oldSellQty = sellDeal.quantity;
@@ -566,14 +501,14 @@ export async function updateDashboardReport(
     }
 
     lot.updatedAt = now;
-    await lotsRepo.save(lot);
+    await repo.saveLot(lot);
 
     // 更新 capital：加上新的已實現損益
     nextTotalInvest = roundTo2(Number(capital.totalInvest) + realizedPnl2);
     if (nextTotalInvest < 0) nextTotalInvest = 0;
     capital.totalInvest = nextTotalInvest.toFixed(2);
     capital.updatedAt = now;
-    await capitalRepo.save(capital);
+    await repo.saveCapital(capital);
 
     // 更新這筆 sell deal 本身
     sellDeal.price = roundTo2(sellPrice).toFixed(2);
@@ -583,32 +518,19 @@ export async function updateDashboardReport(
     sellDeal.realizedPnl = realizedPnl2.toFixed(2);
     sellDeal.dealDate = sellDateObj;
     sellDeal.note = sellNote ?? null;
-    // 若 DealsEntity 有 updatedAt，就一併更新
-    (sellDeal as any).updatedAt = now;
+    sellDeal.updatedAt = now;
 
-    await dealsRepo.save(sellDeal);
+    await repo.saveDeal(sellDeal);
   });
 }
 
 // 撤銷歷史紀錄（退回舊賣出，不再產生新賣出）
 export async function cancelDashboardReport(userId: string, tradesId: string): Promise<void> {
-  await AppDataSource.transaction(async (manager) => {
+  await dashboardRepository.runTransaction(async (repo) => {
     const now = new Date();
 
-    const dealsRepo = manager.getRepository(DealsSchema);
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const capitalRepo = manager.getRepository(UserCapitalSchema);
-
     // 1) 找出這筆要撤銷的賣出紀錄
-    const sellDeal = await dealsRepo.findOne({
-      where: {
-        tradeId: tradesId,
-        userId,
-        type: 'sell',
-        isVoided: false,
-      },
-      relations: ['lot'],
-    });
+    const sellDeal = await repo.findActiveSellDealWithLot(userId, tradesId);
 
     if (!sellDeal) {
       throw httpError(404, '找不到要撤銷的歷史紀錄');
@@ -618,12 +540,12 @@ export async function cancelDashboardReport(userId: string, tradesId: string): P
       throw httpError(400, '此歷史紀錄缺少對應的持倉資訊，無法撤銷');
     }
 
-    const lot = await lotsRepo.findOne({ where: { lotId: sellDeal.lotId, userId } });
+    const lot = await repo.findUserLot(userId, sellDeal.lotId);
     if (!lot) {
       throw httpError(400, '找不到對應的持倉資料，無法撤銷歷史紀錄');
     }
 
-    const capital = await getOrCreateCapitalRowDashboard(userId, manager);
+    const capital = await repo.getOrCreateCapitalRow(userId);
 
     // 2) 退回舊的賣出影響（回補）
     const oldSellQty = sellDeal.quantity;
@@ -647,20 +569,19 @@ export async function cancelDashboardReport(userId: string, tradesId: string): P
     }
 
     lot.updatedAt = now;
-    await lotsRepo.save(lot);
+    await repo.saveLot(lot);
 
     // 3) 回補資金：減去舊的已實現損益
     let nextTotalInvest = roundTo2(Number(capital.totalInvest) - oldRealizedPnl);
     if (nextTotalInvest < 0) nextTotalInvest = 0;
     capital.totalInvest = nextTotalInvest.toFixed(2);
     capital.updatedAt = now;
-    await capitalRepo.save(capital);
+    await repo.saveCapital(capital);
 
     // 4) 將這筆賣出標記為作廢
     sellDeal.isVoided = true;
-    // 若 DealsEntity 有 updatedAt / voidedAt 可以在這裡一併設定
-    (sellDeal as any).updatedAt = now;
-    await dealsRepo.save(sellDeal);
+    sellDeal.updatedAt = now;
+    await repo.saveDeal(sellDeal);
   });
 }
 
@@ -691,28 +612,6 @@ function formatDateToSlash(input: Date | string): string {
   const m = String(dt.getMonth() + 1).padStart(2, '0');
   const d = String(dt.getDate()).padStart(2, '0');
   return `${y}/${m}/${d}`;
-}
-
-// 取得 / 建立資金列（dashboard 專用版本）
-// 注意：transaction 內一定要用 manager 的 repo
-async function getOrCreateCapitalRowDashboard(
-  userId: string,
-  manager?: EntityManager
-): Promise<UserCapitalEntity> {
-  const repo = manager
-    ? manager.getRepository(UserCapitalSchema)
-    : AppDataSource.getRepository(UserCapitalSchema);
-
-  const exist = await repo.findOne({ where: { userId } });
-  if (exist) return exist;
-
-  const created: UserCapitalEntity = {
-    userId,
-    totalInvest: '0',
-    updatedAt: new Date(),
-  };
-
-  return repo.save(created);
 }
 
 // 解析 "YYYY/MM/DD"
