@@ -1,8 +1,3 @@
-import { AppDataSource } from '@/db/data-source.js';
-import { DealsSchema, type DealsEntity } from '@/entity/deals.schema.js';
-import { LotsSchema, type LotsEntity } from '@/entity/lots.schema.js';
-import { StockInfoSchema } from '@/entity/stockInfo.schema.js';
-import { UserCapitalSchema, type UserCapitalEntity } from '@/entity/portfolioSummaries.schema.js';
 import { httpError, roundTo2 } from '@/utils/index.js';
 import type {
   NewAssetDto,
@@ -11,7 +6,7 @@ import type {
   UserPortfolioSummaryDto,
   sellAssetDto,
 } from './asset.dto.js';
-import type { EntityManager } from 'typeorm';
+import { assetRepository } from './asset.repository.js';
 
 type UserRole = 'guest' | 'user' | 'admin';
 
@@ -25,28 +20,7 @@ const BASIC_DAILY_TRADES_LIMIT = 500;
 // ----------資產操作----------
 // 取得資產比例
 export async function getUserPortfolioSummary(userId: string): Promise<UserPortfolioSummaryDto> {
-  const capitalRepo = AppDataSource.getRepository(UserCapitalSchema);
-  const lotsRepo = AppDataSource.getRepository(LotsSchema);
-
-  // 1) totalInvest：仍然從 user_capitals 取（你定義為已實現損益累積後的總體資金）
-  const capitalRow = await capitalRepo.findOne({
-    where: { userId },
-    select: { totalInvest: true },
-  });
-
-  const totalInvest = capitalRow ? Number(capitalRow.totalInvest) : 0;
-
-  // 2) stockCost：改成 SUM(lots.remainingCost)
-  //    注意：排除已撤銷，且只算 still holding 的 lot（remainingQuantity > 0）
-  const raw = await lotsRepo
-    .createQueryBuilder('lot')
-    .select('COALESCE(SUM(lot.remainingCost), 0)', 'stockCost')
-    .where('lot.userId = :userId', { userId })
-    .andWhere('lot.isVoided = false')
-    .andWhere('lot.remainingQuantity > 0')
-    .getRawOne<{ stockCost: string }>();
-
-  const stockCost = raw ? Number(raw.stockCost) : 0;
+  const { totalInvest, stockCost } = await assetRepository.getPortfolioSummaryValues(userId);
 
   // 3) cashInvest / positionRatio
   //    cashInvest 在沒有 cash 帳的情況下，只能視為「非持倉部分的近似」。
@@ -67,36 +41,8 @@ export async function getUserAssets(
   page: number,
   pageSize = 10
 ): Promise<AssetPortfolioDto> {
-  const lotsRepo = AppDataSource.getRepository(LotsSchema);
   const safePage = page > 0 ? page : 1;
-
-  const [lots, total] = await lotsRepo.findAndCount({
-    where: {
-      userId,
-    },
-  });
-
-  // 上面 findAndCount 無法寫 remaining_quantity > 0，所以我們用 QueryBuilder
-  const qb = lotsRepo
-    .createQueryBuilder('l')
-    .select([
-      'l.lotId',
-      'l.stockId',
-      'l.stockName',
-      'l.buyPrice',
-      'l.remainingQuantity',
-      'l.remainingCost',
-      'l.buyDate',
-      'l.note',
-    ])
-    .where('l.user_id = :userId', { userId })
-    .andWhere('l.is_voided = false')
-    .andWhere('l.remaining_quantity > 0')
-    .orderBy('l.buy_date', 'DESC')
-    .skip((safePage - 1) * pageSize)
-    .take(pageSize);
-
-  const [rows, count] = await qb.getManyAndCount();
+  const { rows, count } = await assetRepository.findUserAssets(userId, safePage, pageSize);
 
   const shareholding = rows.map((r) => ({
     assetId: r.lotId, // 改成 lotId 作為前端資產 id
@@ -148,25 +94,14 @@ export async function createNewAsset(
   const buyCost2 = roundTo2(buyCost);
   const buyAmountStr = buyCost2.toFixed(2);
 
-  return AppDataSource.transaction(async (manager) => {
-    const stockRepo = manager.getRepository(StockInfoSchema);
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const dealsRepo = manager.getRepository(DealsSchema);
-
+  return assetRepository.runTransaction(async (repo) => {
     // ✅ 依角色取得本次配額
     const { activeLotsLimit, dailyTradesLimit } = getQuotaByRole(role);
 
     // 1) active lots：未撤銷且剩餘股數 > 0 的 lot 數量（只有有上限的角色才檢查）
-   if (activeLotsLimit != null) {
+    if (activeLotsLimit != null) {
       const { start, end } = getTodayRange();
-      const todayCreatedLotsCount = await lotsRepo
-        .createQueryBuilder('l')
-        .where('l.user_id = :userId', { userId })
-        .andWhere('l.created_at >= :start AND l.created_at < :end', {
-          start,
-          end,
-        })
-        .getCount();
+      const todayCreatedLotsCount = await repo.countTodayCreatedLots(userId, start, end);
 
       if (todayCreatedLotsCount >= activeLotsLimit) {
         throw httpError(429, '已達今日建倉上限，無法新增資產，訪客會員可申請升級獲取更高配額');
@@ -174,35 +109,19 @@ export async function createNewAsset(
     }
 
     // 2) 今日交易數（buy + sell）（只有有上限的角色才檢查）
-     if (dailyTradesLimit != null) {
+    if (dailyTradesLimit != null) {
       const { start, end } = getTodayRange();
-      const todayTradesCount = await dealsRepo
-        .createQueryBuilder('d')
-        .where('d.user_id = :userId', { userId })
-        .andWhere('d.is_voided = false')
-        .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
-          start,
-          end,
-        })
-        .getCount();
+      const todayTradesCount = await repo.countTodayTrades(userId, start, end);
 
       if (todayTradesCount >= dailyTradesLimit) {
         throw httpError(429, '已達今日可建立交易上限，無法新增資產');
       }
     }
 
-    const capital = await getOrCreateCapitalRow(userId, manager);
+    const capital = await repo.getOrCreateCapitalRow(userId);
 
     // ✅ 計算現有所有 active lots 的總持股成本
-    const stockCostResult = await lotsRepo
-      .createQueryBuilder('l')
-      .select('COALESCE(SUM(l.remainingCost), 0)', 'total')
-      .where('l.user_id = :userId', { userId })
-      .andWhere('l.is_voided = false')
-      .andWhere('l.remaining_quantity > 0')
-      .getRawOne<{ total: string }>();
-
-    const currentStockCost = stockCostResult ? Number(stockCostResult.total) : 0;
+    const currentStockCost = await repo.getActiveStockCost(userId);
     const availableCash = Number(capital.totalInvest) - currentStockCost;
 
     // ✅ 如果現金已透支，不允許建倉
@@ -218,10 +137,10 @@ export async function createNewAsset(
       );
     }
 
-    const stockMeta = await stockRepo.findOne({ where: { stockId } });
+    const stockMeta = await repo.findStockMetaById(stockId);
     if (!stockMeta) throw httpError(400, '查無此股票代碼');
 
-    const lot = lotsRepo.create({
+    const lot = repo.createLot({
       userId,
       stockId: stockMeta.stockId,
       stockName: stockMeta.stockName,
@@ -233,9 +152,9 @@ export async function createNewAsset(
       buyAmount: buyAmountStr,
       note: note ?? null,
     });
-    const savedLot = await lotsRepo.save(lot);
+    const savedLot = await repo.saveLot(lot);
 
-    const deal = dealsRepo.create({
+    const deal = repo.createDeal({
       userId,
       lotId: savedLot.lotId,
       stockId: stockMeta.stockId,
@@ -249,7 +168,7 @@ export async function createNewAsset(
       note: note ?? null,
       sellCost: '0',
     });
-    const savedDeal = await dealsRepo.save(deal);
+    const savedDeal = await repo.saveDeal(deal);
 
     return { lotId: savedLot.lotId, tradeId: savedDeal.tradeId };
   });
@@ -282,12 +201,8 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
   const buyPriceStr = roundTo2(buyPrice).toFixed(2);
   const buyCostStr = roundTo2(buyCost).toFixed(2);
 
-  return AppDataSource.transaction(async (manager) => {
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const stockRepo = manager.getRepository(StockInfoSchema);
-    const dealsRepo = manager.getRepository(DealsSchema);
-
-    const lot = await lotsRepo.findOne({ where: { lotId } });
+  return assetRepository.runTransaction(async (repo) => {
+    const lot = await repo.findLotById(lotId);
     if (!lot) throw httpError(400, '找不到要編輯的資產');
     if (lot.isVoided) throw httpError(400, '此資產已刪除，無法編輯');
 
@@ -296,13 +211,11 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
       throw httpError(400, '此資產已部分或全部賣出，無法編輯價格、數量與成本');
     }
 
-    const stockMeta = await stockRepo.findOne({ where: { stockId } });
+    const stockMeta = await repo.findStockMetaById(stockId);
     if (!stockMeta) throw httpError(400, '查無此股票代碼');
 
     // 取得有效 buy deal：理論上只能有一筆
-    const activeBuyDeals = await dealsRepo.find({
-      where: { userId, lotId, type: 'buy', isVoided: false },
-    });
+    const activeBuyDeals = await repo.findActiveBuyDeals(userId, lotId);
 
     if (activeBuyDeals.length !== 1) {
       throw httpError(
@@ -311,17 +224,9 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
       );
     }
 
-    const capital = await getOrCreateCapitalRow(userId, manager);
+    const capital = await repo.getOrCreateCapitalRow(userId);
     // ✅ 計算現有所有 active lots 的總持股成本
-    const stockCostResult = await lotsRepo
-      .createQueryBuilder('l')
-      .select('COALESCE(SUM(l.remainingCost), 0)', 'total')
-      .where('l.user_id = :userId', { userId })
-      .andWhere('l.is_voided = false')
-      .andWhere('l.remaining_quantity > 0')
-      .getRawOne<{ total: string }>();
-
-    const currentStockCost = stockCostResult ? Number(stockCostResult.total) : 0;
+    const currentStockCost = await repo.getActiveStockCost(userId);
     const availableCash = Number(capital.totalInvest) - currentStockCost;
 
     // 如果現金已透支，不允許建倉
@@ -350,10 +255,10 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
     oldBuyDeal.isVoided = true;
     oldBuyDeal.voidedAt = now;
     oldBuyDeal.updatedAt = now;
-    await dealsRepo.save(oldBuyDeal);
+    await repo.saveDeal(oldBuyDeal);
 
     // 建立新的 buy deal（成本以使用者輸入 buyCost 為準）
-    const newBuyDeal = dealsRepo.create({
+    const newBuyDeal = repo.createDeal({
       userId,
       lotId,
       stockId: stockMeta.stockId,
@@ -367,7 +272,7 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
       note: note ?? null,
       sellCost: '0',
     });
-    await dealsRepo.save(newBuyDeal);
+    await repo.saveDeal(newBuyDeal);
 
     // 更新 lot（因為尚未賣出，remainingCost 也應等於 buyCost）
     lot.stockId = stockMeta.stockId;
@@ -380,7 +285,7 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
     lot.remainingCost = buyCostStr; // 尚未賣出，所以剩餘成本 = 成本
     lot.note = note ?? null;
     lot.updatedAt = now;
-    await lotsRepo.save(lot);
+    await repo.saveLot(lot);
   });
 }
 
@@ -388,13 +293,10 @@ export async function updateAsset(userId: string, lotId: string, dto: EditAssetD
 export async function deleteAsset(userId: string, lotId: string): Promise<void> {
   if (!lotId) throw httpError(400, 'lotId 不可為空');
 
-  return AppDataSource.transaction(async (manager) => {
+  return assetRepository.runTransaction(async (repo) => {
     const now = new Date();
 
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const dealsRepo = manager.getRepository(DealsSchema);
-
-    const lot = await lotsRepo.findOne({ where: { lotId, userId } });
+    const lot = await repo.findUserLotById(userId, lotId);
     if (!lot) throw httpError(400, '找不到要刪除的資產');
     if (lot.isVoided) throw httpError(400, '此資產已刪除');
 
@@ -407,12 +309,10 @@ export async function deleteAsset(userId: string, lotId: string): Promise<void> 
     lot.isVoided = true;
     lot.voidedAt = now;
     lot.updatedAt = now;
-    await lotsRepo.save(lot);
+    await repo.saveLot(lot);
 
     // 2) 作廢該 lotId 的所有有效交易（理論上只有 buy，但這樣更穩）
-    const activeDeals = await dealsRepo.find({
-      where: { userId, lotId, isVoided: false },
-    });
+    const activeDeals = await repo.findActiveDeals(userId, lotId);
 
     for (const d of activeDeals) {
       d.isVoided = true;
@@ -421,7 +321,7 @@ export async function deleteAsset(userId: string, lotId: string): Promise<void> 
     }
 
     if (activeDeals.length > 0) {
-      await dealsRepo.save(activeDeals);
+      await repo.saveDeals(activeDeals);
     }
   });
 }
@@ -460,13 +360,8 @@ export async function sellAsset(
     throw httpError(400, '價格、股數與應收付必須大於 0');
   }
 
-  return AppDataSource.transaction(async (manager) => {
+  return assetRepository.runTransaction(async (repo) => {
     const now = new Date();
-
-    const lotsRepo = manager.getRepository(LotsSchema);
-    const stockRepo = manager.getRepository(StockInfoSchema);
-    const dealsRepo = manager.getRepository(DealsSchema);
-    const capitalRepo = manager.getRepository(UserCapitalSchema);
 
     // ✅ 依角色取得本次配額
     const { dailyTradesLimit } = getQuotaByRole(role);
@@ -474,15 +369,7 @@ export async function sellAsset(
     // 只有有上限的角色才檢查今日交易數
     if (dailyTradesLimit != null) {
       const { start, end } = getTodayRange();
-      const todayTradesCount = await dealsRepo
-        .createQueryBuilder('d')
-        .where('d.user_id = :userId', { userId })
-        .andWhere('d.is_voided = false')
-        .andWhere('d.dealDate >= :start AND d.dealDate < :end', {
-          start,
-          end,
-        })
-        .getCount();
+      const todayTradesCount = await repo.countTodayTrades(userId, start, end);
 
       // 這次賣出會多一筆 sell deal，已達上限就不讓賣
       if (todayTradesCount >= dailyTradesLimit) {
@@ -490,7 +377,7 @@ export async function sellAsset(
       }
     }
 
-    const lot = await lotsRepo.findOne({ where: { lotId } });
+    const lot = await repo.findLotById(lotId);
     if (!lot) throw httpError(400, '找不到要編輯的資產');
     if (lot.isVoided) throw httpError(400, '此資產已撤銷，無法賣出');
 
@@ -498,7 +385,7 @@ export async function sellAsset(
       throw httpError(400, '您輸入的股數超過可賣出股數');
     }
 
-    const stockMeta = await stockRepo.findOne({ where: { stockId: lot.stockId } });
+    const stockMeta = await repo.findStockMetaById(lot.stockId);
     if (!stockMeta) throw httpError(400, '查無此股票代碼');
 
     // 這次實際賣掉的「成本部分」= 應收付 - 已實現損益
@@ -517,7 +404,7 @@ export async function sellAsset(
       throw httpError(400, '此次賣出分配的成本超過可分配成本，請調整應收付金額或實際損益');
     }
 
-    const newSellDeal = dealsRepo.create({
+    const newSellDeal = repo.createDeal({
       userId,
       lotId,
       stockId: lot.stockId,
@@ -532,7 +419,7 @@ export async function sellAsset(
       isVoided: false,
       note: note ?? null,
     });
-    await dealsRepo.save(newSellDeal);
+    await repo.saveDeal(newSellDeal);
 
     // 更新 lot
     lot.remainingQuantity = lot.remainingQuantity - sellQty;
@@ -548,10 +435,10 @@ export async function sellAsset(
       lot.voidedAt = now;
     }
     lot.updatedAt = now;
-    await lotsRepo.save(lot);
+    await repo.saveLot(lot);
 
     // 更新 capital
-    const capital = await getOrCreateCapitalRow(userId, manager);
+    const capital = await repo.getOrCreateCapitalRow(userId);
 
     //  累加已實現損益到 totalInvest（總資金會隨盈虧增減）
     let nextTotalInvest = roundTo2(Number(capital.totalInvest) + realizedPnl);
@@ -559,34 +446,12 @@ export async function sellAsset(
     capital.totalInvest = nextTotalInvest.toFixed(2);
 
     capital.updatedAt = now;
-    await capitalRepo.save(capital);
+    await repo.saveCapital(capital);
 
     return lotId;
   });
 }
 // ---------------------------
-
-// 共用：取得資金列，不存在就建立（total_invest, cost_total 預設 0）
-// 注意：transaction 內一定要用 manager 的 repo
-async function getOrCreateCapitalRow(
-  userId: string,
-  manager?: EntityManager
-): Promise<UserCapitalEntity> {
-  const repo = manager
-    ? manager.getRepository(UserCapitalSchema)
-    : AppDataSource.getRepository(UserCapitalSchema);
-
-  const exist = await repo.findOne({ where: { userId } });
-  if (exist) return exist;
-
-  const created: UserCapitalEntity = {
-    userId,
-    totalInvest: '0',
-    updatedAt: new Date(),
-  };
-
-  return repo.save(created);
-}
 
 // 解析 "YYYY/MM/DD"
 function parseYMDSlashDateLocal(input: string, fieldName: string): Date {

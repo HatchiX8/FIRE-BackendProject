@@ -8,7 +8,6 @@ import {
   getUserPortfolioSummaryController,
   sellAssetController,
 } from './asset.controller.js';
-// const dealsRepo = AppDataSource.getRepository(DealsSchema);
 
 export const assetRouter = Router();
 
