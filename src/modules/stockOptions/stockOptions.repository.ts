@@ -2,7 +2,7 @@ import { AppDataSource } from '@/db/data-source.js';
 import { StockInfoSchema, type StockInfoEntity } from '@/entity/stockInfo.schema.js';
 import type { DataSource, Repository } from 'typeorm';
 
-export class OptionsRepository {
+export class StockOptionsRepository {
   private readonly stockInfoRepo: Repository<StockInfoEntity>;
 
   constructor(dataSource: DataSource) {
@@ -18,4 +18,4 @@ export class OptionsRepository {
   }
 }
 
-export const optionsRepository = new OptionsRepository(AppDataSource);
+export const stockOptionsRepository = new StockOptionsRepository(AppDataSource);

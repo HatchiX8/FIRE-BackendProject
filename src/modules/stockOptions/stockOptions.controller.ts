@@ -1,13 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getStockInfoOptions } from './options.service.js';
+import { getStockOptions } from './stockOptions.service.js';
 
-export async function getStockInfoOptionsController(
+export async function getStockOptionsController(
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
-    const data = await getStockInfoOptions();
+    const data = await getStockOptions();
 
     res.status(200).json({
       message: '成功取得股票資料',

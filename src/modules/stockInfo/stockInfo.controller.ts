@@ -1,31 +1,35 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { DataSource } from 'typeorm';
-import { syncStockInfo, tryAcquireLock, releaseLock } from './stockInfo.service.js';
+import { syncStockInfo } from './stockInfo.service.js';
+import { releaseStockInfoSyncLock, tryAcquireStockInfoSyncLock } from './stockInfo.locks.js';
 
-export function buildStockInfoSyncHandler(ds: DataSource) {
-  return async function (req: Request, res: Response, next: NextFunction) {
-    const lockOk = tryAcquireLock();
-    if (!lockOk) {
-      return res.status(409).json({ ok: false, message: 'Sync is already running' });
+export async function syncStockInfoController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const lockOk = tryAcquireStockInfoSyncLock();
+  if (!lockOk) {
+    res.status(409).json({ ok: false, message: 'Sync is already running' });
+    return;
+  }
+
+  try {
+    const modeRaw = String(req.query.mode ?? 'sync');
+    const mode: 'init' | 'sync' = modeRaw === 'init' ? 'init' : 'sync';
+
+    const result = await syncStockInfo(mode);
+    res.status(200).json({ ok: true, data: result });
+  } catch (err) {
+    const anyErr = err as Error & { code?: string };
+    if (anyErr?.code === 'ALREADY_INITIALIZED') {
+      res.status(409).json({
+        ok: false,
+        message: 'stock_info already initialized; use mode=sync if you really want to re-sync',
+      });
+      return;
     }
-
-    try {
-      const modeRaw = String(req.query.mode ?? 'sync');
-      const mode: 'init' | 'sync' = modeRaw === 'init' ? 'init' : 'sync';
-
-      const result = await syncStockInfo(ds, mode);
-      return res.status(200).json({ ok: true, data: result });
-    } catch (err) {
-      const anyErr = err as any;
-      if (anyErr?.code === 'ALREADY_INITIALIZED') {
-        return res.status(409).json({
-          ok: false,
-          message: 'stock_info already initialized; use mode=sync if you really want to re-sync',
-        });
-      }
-      return next(err);
-    } finally {
-      releaseLock();
-    }
-  };
+    next(err);
+  } finally {
+    releaseStockInfoSyncLock();
+  }
 }

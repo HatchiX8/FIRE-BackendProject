@@ -1,18 +1,5 @@
-import type { DataSource } from 'typeorm';
 import { fetchStockListFromProviders } from './stockInfo.provider.js';
-import { hasAnyStockInfo, upsertStockInfoChunked } from './stockInfo.repo.js';
-
-let isRunning = false;
-
-export function tryAcquireLock(): boolean {
-  if (isRunning) return false;
-  isRunning = true;
-  return true;
-}
-
-export function releaseLock(): void {
-  isRunning = false;
-}
+import { stockInfoPriceRepository } from './stockInfo.price.repository.js';
 
 export type SyncStockInfoResult = {
   mode: 'init' | 'sync';
@@ -21,14 +8,11 @@ export type SyncStockInfoResult = {
   fetchedAt: string;
 };
 
-export async function syncStockInfo(
-  ds: DataSource,
-  mode: 'init' | 'sync'
-): Promise<SyncStockInfoResult> {
+export async function syncStockInfo(mode: 'init' | 'sync'): Promise<SyncStockInfoResult> {
   const fetchedAt = new Date().toISOString();
 
   if (mode === 'init') {
-    const existed = await hasAnyStockInfo(ds);
+    const existed = await stockInfoPriceRepository.hasAnyStockPrice();
     if (existed) {
       // 交由 controller 回 409
       const err = new Error('stock_info already initialized');
@@ -38,7 +22,7 @@ export async function syncStockInfo(
   }
 
   const list = await fetchStockListFromProviders();
-  const totalUpserted = await upsertStockInfoChunked(ds, list);
+  const totalUpserted = await stockInfoPriceRepository.upsertStockPricesChunked(list);
 
   return {
     mode,
